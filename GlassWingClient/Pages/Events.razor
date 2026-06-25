@@ -1,0 +1,122 @@
+@page "/events"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Events — GlassWing</PageTitle>
+<h1 class="mb-4">Events</h1>
+
+<div class="row">
+    <div class="col-md-5">
+
+        <div class="mb-3">
+            <label class="form-label">Event type</label>
+            <select class="form-select" @bind="selectedEventType" @bind:after="OnEventTypeChanged">
+                <option value="">— choose an event —</option>
+                @foreach (var evt in EventOptions)
+                {
+                    <option value="@evt.Key">@evt.Label</option>
+                }
+            </select>
+        </div>
+
+        @if (selectedEventType != "")
+        {
+            <div class="mb-3">
+                <label class="form-label">Select rat</label>
+                @if (rats is null)
+                {
+                    <p class="text-muted small">Loading rats...</p>
+                }
+                else if (rats.Length == 0)
+                {
+                    <p class="text-muted">No rats yet. <a href="/rats">Create one first.</a></p>
+                }
+                else
+                {
+                    <select class="form-select" @bind="selectedRatId">
+                        <option value="">— choose a rat —</option>
+                        @foreach (var r in rats)
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                }
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="RunAsync"
+                    disabled="@(string.IsNullOrEmpty(selectedRatId) || running)">
+                @(running ? "Running..." : "Run event")
+            </button>
+        }
+
+    </div>
+</div>
+
+@if (result is not null)
+{
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Event complete!</h5>
+            <p class="mb-1">New currency balance: <strong>@result.NewCurrencyBalance</strong></p>
+            @if (result.Event is not null)
+            {
+                <details class="mt-2">
+                    <summary class="text-muted small">Event details</summary>
+                    <pre class="small mt-2 text-break">@result.Event.Value.GetRawText()</pre>
+                </details>
+            }
+        </div>
+    </div>
+}
+else if (error is not null)
+{
+    <div class="alert alert-danger mt-3">@error</div>
+}
+
+@code {
+    record EventOption(string Key, string Label);
+
+    static readonly EventOption[] EventOptions =
+    [
+        new("tutorial", "Tutorial Event"),
+    ];
+
+    RatResponse[]? rats;
+    string selectedEventType = "";
+    string selectedRatId = "";
+    bool running;
+    TutorialEventResponse? result;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+    }
+
+    async Task OnEventTypeChanged()
+    {
+        selectedRatId = "";
+        result = null;
+        error = null;
+        if (selectedEventType != "" && rats is null)
+            rats = await Api.ListRatsAsync() ?? [];
+    }
+
+    async Task RunAsync()
+    {
+        running = true;
+        result = null;
+        error = null;
+
+        result = selectedEventType switch
+        {
+            "tutorial" => await Api.RunTutorialAsync(selectedRatId),
+            _          => null
+        };
+
+        if (result is null) error = "Event failed — check that the rat is eligible.";
+        running = false;
+    }
+}
