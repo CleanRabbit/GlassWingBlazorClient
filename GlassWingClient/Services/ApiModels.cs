@@ -57,14 +57,37 @@ public record HomeResponse(string Id, string OwnerId, string Name, CageResponse[
 public record CageResponse(
     string Id,
     string Name,
-    int FoodLevel,
-    int WaterLevel,
+    CageTypeInfo? Type,
     CageFoodInfo? Food,
     CageRegimeInfo? Regime,
+    TrainingBonus? TrainingEfficacy,
+    int FoodLevel,
+    int WaterLevel,
+    InstalledBowlInfo[]? FoodBowls,
+    InstalledBottleInfo[]? WaterBottles,
+    InstalledAccessoryInfo[]? Accessories,
     RatSummary[] Rats);
+
+public record CageTypeInfo(
+    string Id,
+    string Brand,
+    string ModelName,
+    string? Tier,
+    int WidthCm,
+    int DepthCm,
+    int HeightCm,
+    int MaxCapacity,
+    int MaxFoodBowlSlots,
+    int MaxWaterBottleSlots);
 
 public record CageFoodInfo(string Id, string Name);
 public record CageRegimeInfo(string Id, string Name);
+public record TrainingBonus(double Sprint, double Agility, double Endurance);
+
+public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays);
+public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays);
+public record InstalledAccessoryInfo(string Id, string Name, string? Description);
+
 public record RatSummary(string Id, string Name);
 
 // --- Events ---

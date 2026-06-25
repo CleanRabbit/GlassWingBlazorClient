@@ -34,54 +34,170 @@ else
         }
     </div>
 
-    @foreach (var cage in home!.Cages)
-    {
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">@cage.Name</h5>
-                <div class="row mb-2">
-                    <div class="col-sm-3 text-muted small">Food</div>
-                    <div class="col-sm-9">@cage.FoodLevel @(cage.Food is not null ? $"({cage.Food.Name})" : "")</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-sm-3 text-muted small">Water</div>
-                    <div class="col-sm-9">@cage.WaterLevel</div>
-                </div>
-                @if (cage.Regime is not null)
-                {
-                    <div class="row mb-2">
-                        <div class="col-sm-3 text-muted small">Regime</div>
-                        <div class="col-sm-9">@cage.Regime.Name</div>
-                    </div>
-                }
-                <div class="d-flex gap-2 mb-2">
-                    <button class="btn btn-sm btn-outline-success"
-                            @onclick="() => RefillFoodAsync(cage.Id)"
-                            disabled="@IsBusy(cage.Id)">
-                        Refill Food
-                    </button>
-                    <button class="btn btn-sm btn-outline-info"
-                            @onclick="() => RefillWaterAsync(cage.Id)"
-                            disabled="@IsBusy(cage.Id)">
-                        Refill Water
-                    </button>
-                </div>
-                @if (cage.Rats.Length > 0)
-                {
-                    <ul class="list-unstyled mb-0">
-                        @foreach (var rat in cage.Rats)
+    <div class="row g-3">
+        @foreach (var cage in home!.Cages)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100">
+                    <div class="card-body">
+
+                        @* ── Header ─────────────────────────────────── *@
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="card-title mb-0">@cage.Name</h5>
+                            @if (cage.Type?.Tier is { } tier)
+                            {
+                                <span class="badge @TierBadgeClass(tier)">@tier</span>
+                            }
+                        </div>
+                        @if (cage.Type is { } ct)
                         {
-                            <li><a href="/rats/@rat.Id">@rat.Name</a></li>
+                            <div class="text-muted small mb-2">
+                                @ct.Brand @ct.ModelName · @ct.WidthCm × @ct.DepthCm × @ct.HeightCm cm
+                            </div>
                         }
-                    </ul>
-                }
-                else
-                {
-                    <small class="text-muted">Empty cage</small>
-                }
+
+                        <hr class="my-2" />
+
+                        @* ── Occupancy ──────────────────────────────── *@
+                        @{
+                            var maxCap = cage.Type?.MaxCapacity ?? cage.Rats.Length;
+                        }
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted small">Occupancy</span>
+                            <span class="text-muted small">@cage.Rats.Length / @maxCap</span>
+                        </div>
+                        <div class="mb-2">
+                            @for (var i = 0; i < maxCap; i++)
+                            {
+                                if (i < cage.Rats.Length)
+                                {
+                                    <a href="/rats/@cage.Rats[i].Id"
+                                       class="badge bg-secondary text-decoration-none me-1 mb-1">
+                                        @cage.Rats[i].Name
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="badge border border-secondary text-muted me-1 mb-1">&nbsp;—&nbsp;</span>
+                                }
+                            }
+                        </div>
+
+                        <hr class="my-2" />
+
+                        @* ── Resources ──────────────────────────────── *@
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small text-muted">
+                                    Food@(cage.Food is not null ? $" ({cage.Food.Name})" : "")
+                                </span>
+                                <span class="small">@cage.FoodLevel%</span>
+                            </div>
+                            <div class="progress mb-2" style="height:8px">
+                                <div class="progress-bar @BarClass(cage.FoodLevel)"
+                                     style="width:@(cage.FoodLevel)%"></div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-success w-100"
+                                    @onclick="() => RefillFoodAsync(cage.Id)"
+                                    disabled="@IsBusy(cage.Id)">
+                                Refill Food
+                            </button>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="small text-muted">Water</span>
+                                <span class="small">@cage.WaterLevel%</span>
+                            </div>
+                            <div class="progress mb-2" style="height:8px">
+                                <div class="progress-bar @BarClass(cage.WaterLevel)"
+                                     style="width:@(cage.WaterLevel)%"></div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-info w-100"
+                                    @onclick="() => RefillWaterAsync(cage.Id)"
+                                    disabled="@IsBusy(cage.Id)">
+                                Refill Water
+                            </button>
+                        </div>
+
+                        @* ── Contents ───────────────────────────────── *@
+                        @{
+                            var hasBowls       = cage.FoodBowls    is { Length: > 0 };
+                            var hasBottles     = cage.WaterBottles  is { Length: > 0 };
+                            var hasAccessories = cage.Accessories   is { Length: > 0 };
+                        }
+                        @if (hasBowls || hasBottles || hasAccessories)
+                        {
+                            <hr class="my-2" />
+                            <div class="text-muted small mb-1">Contents</div>
+                            <ul class="list-unstyled small mb-0">
+                                @if (hasBowls)
+                                {
+                                    @foreach (var bowl in cage.FoodBowls!)
+                                    {
+                                        <li>
+                                            <span class="text-muted">Bowl</span>
+                                            · @bowl.Name
+                                            <span class="text-muted">
+                                                (@bowl.CapacityRatDays rat-day@(bowl.CapacityRatDays != 1 ? "s" : ""))
+                                            </span>
+                                        </li>
+                                    }
+                                }
+                                @if (hasBottles)
+                                {
+                                    @foreach (var bottle in cage.WaterBottles!)
+                                    {
+                                        <li>
+                                            <span class="text-muted">Bottle</span>
+                                            · @bottle.Name
+                                            <span class="text-muted">
+                                                (@bottle.CapacityRatDays rat-day@(bottle.CapacityRatDays != 1 ? "s" : ""))
+                                            </span>
+                                        </li>
+                                    }
+                                }
+                                @if (hasAccessories)
+                                {
+                                    @foreach (var acc in cage.Accessories!)
+                                    {
+                                        <li>
+                                            @acc.Name
+                                            @if (!string.IsNullOrWhiteSpace(acc.Description))
+                                            {
+                                                <div class="text-muted" style="padding-left:0.75rem">
+                                                    @acc.Description
+                                                </div>
+                                            }
+                                        </li>
+                                    }
+                                }
+                            </ul>
+                        }
+
+                        @* ── Training ───────────────────────────────── *@
+                        @if (cage.Regime is not null)
+                        {
+                            <hr class="my-2" />
+                            <div class="small">
+                                <span class="text-muted">Regime</span> @cage.Regime.Name
+                                @if (cage.TrainingEfficacy is { } eff)
+                                {
+                                    <div class="text-muted mt-1">
+                                        <span class="@EfficacyClass(eff.Sprint)">Sprint ×@eff.Sprint.ToString("F2")</span>
+                                        <span class="mx-1">·</span>
+                                        <span class="@EfficacyClass(eff.Agility)">Agi ×@eff.Agility.ToString("F2")</span>
+                                        <span class="mx-1">·</span>
+                                        <span class="@EfficacyClass(eff.Endurance)">End ×@eff.Endurance.ToString("F2")</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                    </div>
+                </div>
             </div>
-        </div>
-    }
+        }
+    </div>
 }
 
 @code {
@@ -160,4 +276,25 @@ else
     }
 
     bool IsBusy(string cageId) => busyCages.Contains(cageId);
+
+    static string BarClass(int level) => level switch
+    {
+        >= 60 => "bg-success",
+        >= 30 => "bg-warning",
+        _     => "bg-danger"
+    };
+
+    static string TierBadgeClass(string? tier) => tier switch
+    {
+        "Starter" => "bg-secondary",
+        "Budget"  => "bg-info text-dark",
+        "Mid"     => "bg-info text-dark",
+        "Large"   => "bg-primary",
+        "Premium" => "bg-warning text-dark",
+        "Bespoke" => "bg-danger",
+        _         => "bg-secondary"
+    };
+
+    static string EfficacyClass(double v) =>
+        v > 1.0 ? "text-success" : v < 1.0 ? "text-warning" : "text-muted";
 }
