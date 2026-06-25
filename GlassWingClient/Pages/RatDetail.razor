@@ -32,11 +32,13 @@ else
         }
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
+
+        @* Fitness *@
         <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Fitness</h6>
+                    <h6 class="card-subtitle mb-3 text-muted">Fitness</h6>
                     <table class="table table-sm mb-0">
                         <tbody>
                             <tr><th>Sprint</th><td>@FormatStat(rat.Fitness?.Sprint)</td></tr>
@@ -47,18 +49,60 @@ else
                 </div>
             </div>
         </div>
+
+        @* Health *@
         <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Health</h6>
-                    <pre class="small mb-0">@(rat.HealthState?.GetRawText() ?? "—")</pre>
+                    <h6 class="card-subtitle mb-3 text-muted">Health</h6>
+                    @if (rat.HealthState is { } h)
+                    {
+                        <div class="mb-3">
+                            <span class="badge @VitalityBadgeClass(h.Vitality) fs-6">@(h.Vitality ?? "Unknown")</span>
+                        </div>
+                        <table class="table table-sm mb-3">
+                            <tbody>
+                                <tr><th>Weight</th><td>@h.WeightGrams.ToString("F1")g</td></tr>
+                                <tr><th>Length</th><td>@h.BodyLengthCm.ToString("F1")cm</td></tr>
+                            </tbody>
+                        </table>
+                        @if (h.ActiveIllnesses is { Length: > 0 })
+                        {
+                            <h6 class="text-danger mb-2">Active Illnesses</h6>
+                            @foreach (var illness in h.ActiveIllnesses)
+                            {
+                                <div class="border border-danger rounded p-2 mb-2 small">
+                                    <div class="fw-bold">@illness.IllnessId</div>
+                                    <div class="text-muted">Since @illness.StartedAt.ToString("dd MMM yyyy")</div>
+                                    @if (illness.TreatmentApplied)
+                                    {
+                                        <span class="badge bg-success mt-1">Treatment applied</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark mt-1">Untreated</span>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <small class="text-muted">No active illnesses</small>
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted">—</span>
+                    }
                 </div>
             </div>
         </div>
+
+        @* Tricks *@
         <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Tricks</h6>
+                    <h6 class="card-subtitle mb-3 text-muted">Tricks</h6>
                     @if (rat.TricksLearned is { Length: > 0 })
                     {
                         <ul class="list-unstyled mb-0">
@@ -75,8 +119,63 @@ else
                 </div>
             </div>
         </div>
+
     </div>
 
+    @* Appearance *@
+    @if (rat.Phenotype is { Coat: { } coat } phenotype)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-3 text-muted">Appearance</h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr>
+                                    <th>Description</th>
+                                    <td>@CoatDescription(coat)</td>
+                                </tr>
+                                <tr><th>Eyes</th><td>@(coat.EyeColor ?? "—")</td></tr>
+                                <tr><th>Ears</th><td>@(coat.EarType ?? "—")</td></tr>
+                                @if (coat.Pattern == "Hooded" && coat.HoodQuality is not null)
+                                {
+                                    <tr><th>Hood Quality</th><td>@coat.HoodQuality</td></tr>
+                                }
+                                @if (coat.PointColor is not null)
+                                {
+                                    <tr><th>Point Colour</th><td>@coat.PointColor</td></tr>
+                                }
+                                @if (phenotype.Morphology is { } morph)
+                                {
+                                    <tr><th>Sex</th><td>@(morph.Sex ?? "—")</td></tr>
+                                    <tr><th>Size</th><td>@morph.BodySize / 100</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-2">Markings</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            @if (coat.HasBlaze)         { <span class="badge bg-secondary">Blaze</span> }
+                            @if (coat.IsRoan)           { <span class="badge bg-secondary">Roan</span> }
+                            @if (coat.IsDownunder)      { <span class="badge bg-secondary">Downunder</span> }
+                            @if (coat.IsDownunderHomozygous) { <span class="badge bg-secondary">Downunder (HZ)</span> }
+                            @if (coat.Silvering == "Light")  { <span class="badge bg-secondary">Light Silvering</span> }
+                            @if (coat.Silvering == "Heavy")  { <span class="badge bg-secondary">Heavy Silvering</span> }
+                            @if (!coat.HasBlaze && !coat.IsRoan && !coat.IsDownunder
+                                 && coat.Silvering is null or "None")
+                            {
+                                <span class="text-muted small">None</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Training *@
     <h5>Training</h5>
     <div class="d-flex gap-2 mb-2">
         <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Sprint")' disabled="@training">Sprint</button>
@@ -146,4 +245,24 @@ else
 
     static string FormatStat(StatFitness? stat) =>
         stat is null ? "—" : $"{stat.Score:F2} ({stat.TrainingCount} sessions)";
+
+    static string VitalityBadgeClass(string? vitality) => vitality switch
+    {
+        "Healthy"  => "bg-success",
+        "Stressed" => "bg-warning text-dark",
+        "Pregnant" => "bg-info text-dark",
+        "Ill"      => "bg-danger",
+        "Critical" => "bg-danger",
+        _          => "bg-secondary"
+    };
+
+    static string CoatDescription(CoatPhenotype c)
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (c.EarType is "Dumbo") parts.Add("Dumbo");
+        if (c.BaseColor is not null) parts.Add(c.BaseColor);
+        if (c.Pattern is not null) parts.Add(c.Pattern);
+        if (c.Type is not null and not "Standard") parts.Add(c.Type);
+        return parts.Count > 0 ? string.Join(" ", parts) : "—";
+    }
 }
