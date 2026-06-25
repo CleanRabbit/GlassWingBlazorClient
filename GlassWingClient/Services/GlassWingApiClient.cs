@@ -115,6 +115,16 @@ public class GlassWingApiClient(HttpClient http)
         return resp.IsSuccessStatusCode;
     }
 
+    // --- Game ---
+
+    public async Task<GameSettingsResponse?> GetGameSettingsAsync()
+    {
+        var resp = await http.GetAsync("/api/game/settings");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<GameSettingsResponse>(JsonOpts)
+            : null;
+    }
+
     // --- Events ---
 
     public async Task<TutorialEventResponse?> RunTutorialAsync(string ratId)

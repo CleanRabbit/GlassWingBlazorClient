@@ -90,6 +90,15 @@ public record InstalledAccessoryInfo(string Id, string Name, string? Description
 
 public record RatSummary(string Id, string Name);
 
+// --- Game ---
+
+public record GameSettingsResponse(
+    double BiologicalScale,
+    double FoodConsumptionScale,
+    double WaterConsumptionScale,
+    double TrainingCooldownScale,
+    double IllnessProgressionScale);
+
 // --- Events ---
 
 public record TutorialEventResponse(JsonElement? Event, decimal NewCurrencyBalance);

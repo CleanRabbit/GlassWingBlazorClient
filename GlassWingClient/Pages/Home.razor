@@ -20,6 +20,20 @@ else if (loadError is not null)
 }
 else
 {
+    @if (gameSettings is not null)
+    {
+        <details class="mb-3">
+            <summary class="text-muted small user-select-none" style="cursor:pointer">Server config</summary>
+            <div class="d-flex flex-wrap gap-3 mt-2 small font-monospace">
+                <span><span class="text-muted">Biological scale</span> @(gameSettings.BiologicalScale)×</span>
+                <span><span class="text-muted">Food</span> @(gameSettings.FoodConsumptionScale)×</span>
+                <span><span class="text-muted">Water</span> @(gameSettings.WaterConsumptionScale)×</span>
+                <span><span class="text-muted">Training cooldown</span> @(gameSettings.TrainingCooldownScale)×</span>
+                <span><span class="text-muted">Illness</span> @(gameSettings.IllnessProgressionScale)×</span>
+            </div>
+        </details>
+    }
+
     <div class="d-flex align-items-center gap-3 mb-4">
         @if (!renaming)
         {
@@ -202,6 +216,7 @@ else
 
 @code {
     HomeResponse? home;
+    GameSettingsResponse? gameSettings;
     bool loaded;
     string? loadError;
     bool renaming;
@@ -218,10 +233,14 @@ else
     {
         try
         {
-            var (data, error) = await Api.GetHomeAsync();
-            home = data;
-            loadError = error;
-            renameValue = home?.Name ?? "";
+            var homeTask     = Api.GetHomeAsync();
+            var settingsTask = Api.GetGameSettingsAsync();
+            var (homeResult, settings) = (await homeTask, await settingsTask);
+            var (data, error) = homeResult;
+            home         = data;
+            loadError    = error;
+            gameSettings = settings;
+            renameValue  = home?.Name ?? "";
         }
         catch (Exception ex)
         {
