@@ -59,10 +59,12 @@ public record CageResponse(
     string Name,
     int FoodLevel,
     int WaterLevel,
-    string? Food,
-    string? Regime,
+    CageFoodInfo? Food,
+    CageRegimeInfo? Regime,
     RatSummary[] Rats);
 
+public record CageFoodInfo(string Id, string Name);
+public record CageRegimeInfo(string Id, string Name);
 public record RatSummary(string Id, string Name);
 
 // --- Events ---

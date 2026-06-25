@@ -6,16 +6,24 @@
 
 <PageTitle>Home — GlassWing</PageTitle>
 
-@if (home is null)
+@if (!loaded)
 {
-    <p>Loading...</p>
+    <p class="text-muted">Loading...</p>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Failed to load home.</strong><br />
+        <code>@loadError</code>
+    </div>
+    <button class="btn btn-outline-secondary mt-2" @onclick="RetryAsync">Retry</button>
 }
 else
 {
     <div class="d-flex align-items-center gap-3 mb-4">
         @if (!renaming)
         {
-            <h1 class="mb-0">@home.Name</h1>
+            <h1 class="mb-0">@home!.Name</h1>
             <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
         }
         else
@@ -26,14 +34,14 @@ else
         }
     </div>
 
-    @foreach (var cage in home.Cages)
+    @foreach (var cage in home!.Cages)
     {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">@cage.Name</h5>
                 <div class="row mb-2">
                     <div class="col-sm-3 text-muted small">Food</div>
-                    <div class="col-sm-9">@cage.FoodLevel @(cage.Food is not null ? $"({cage.Food})" : "")</div>
+                    <div class="col-sm-9">@cage.FoodLevel @(cage.Food is not null ? $"({cage.Food.Name})" : "")</div>
                 </div>
                 <div class="row mb-2">
                     <div class="col-sm-3 text-muted small">Water</div>
@@ -43,7 +51,7 @@ else
                 {
                     <div class="row mb-2">
                         <div class="col-sm-3 text-muted small">Regime</div>
-                        <div class="col-sm-9">@cage.Regime</div>
+                        <div class="col-sm-9">@cage.Regime.Name</div>
                     </div>
                 }
                 <div class="d-flex gap-2 mb-2">
@@ -78,6 +86,8 @@ else
 
 @code {
     HomeResponse? home;
+    bool loaded;
+    string? loadError;
     bool renaming;
     string renameValue = "";
     readonly HashSet<string> busyCages = [];
@@ -85,8 +95,35 @@ else
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        home = await Api.GetHomeAsync();
-        renameValue = home?.Name ?? "";
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            var (data, error) = await Api.GetHomeAsync();
+            home = data;
+            loadError = error;
+            renameValue = home?.Name ?? "";
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            loaded = true;
+        }
+    }
+
+    async Task RetryAsync()
+    {
+        loaded = false;
+        loadError = null;
+        home = null;
+        StateHasChanged();
+        await LoadAsync();
     }
 
     void StartRename()
@@ -99,7 +136,8 @@ else
     {
         if (string.IsNullOrWhiteSpace(renameValue)) return;
         await Api.RenameHomeAsync(renameValue);
-        home = await Api.GetHomeAsync();
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
         renaming = false;
     }
 
@@ -107,7 +145,8 @@ else
     {
         busyCages.Add(cageId);
         await Api.RefillFoodAsync(cageId);
-        home = await Api.GetHomeAsync();
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
         busyCages.Remove(cageId);
     }
 
@@ -115,7 +154,8 @@ else
     {
         busyCages.Add(cageId);
         await Api.RefillWaterAsync(cageId);
-        home = await Api.GetHomeAsync();
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
         busyCages.Remove(cageId);
     }
 

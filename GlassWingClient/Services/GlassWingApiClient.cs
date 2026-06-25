@@ -77,12 +77,16 @@ public class GlassWingApiClient(HttpClient http)
 
     // --- Home ---
 
-    public async Task<HomeResponse?> GetHomeAsync()
+    public async Task<(HomeResponse? Home, string? Error)> GetHomeAsync()
     {
         var resp = await http.GetAsync("/api/home/");
-        return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<HomeResponse>(JsonOpts)
-            : null;
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            Console.WriteLine($"GET /api/home/ → {(int)resp.StatusCode} {resp.StatusCode}: {body}");
+            return (null, string.IsNullOrWhiteSpace(body) ? $"HTTP {(int)resp.StatusCode}" : body);
+        }
+        return (await resp.Content.ReadFromJsonAsync<HomeResponse>(JsonOpts), null);
     }
 
     public async Task<bool> RenameHomeAsync(string name)
