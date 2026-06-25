@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="GlassWing.Client.Core/GlassWing.Client.Core.csproj" />
   <Project Path="GlassWingClient/GlassWingClient.csproj" />
 </Solution>

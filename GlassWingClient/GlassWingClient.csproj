@@ -13,4 +13,8 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GlassWing.Client.Core\GlassWing.Client.Core.csproj" />
+  </ItemGroup>
+
 </Project>
