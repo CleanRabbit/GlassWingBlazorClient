@@ -1,0 +1,70 @@
+@page "/register"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Register — GlassWing</PageTitle>
+<h1>Register</h1>
+
+<div class="row">
+    <div class="col-md-4">
+        <EditForm Model="model" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <InputText class="form-control" @bind-Value="model.Username" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText class="form-control" @bind-Value="model.Email" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText class="form-control" type="password" @bind-Value="model.Password" />
+            </div>
+            @if (error is not null)
+            {
+                <div class="alert alert-danger">@error</div>
+            }
+            <button class="btn btn-primary me-2" type="submit" disabled="@submitting">
+                @(submitting ? "Registering..." : "Register")
+            </button>
+            <a href="/login">Already have an account?</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    readonly RegisterModel model = new();
+    string? error;
+    bool submitting;
+
+    protected override void OnInitialized()
+    {
+        if (Auth.IsAuthenticated) Nav.NavigateTo("/home");
+    }
+
+    async Task SubmitAsync()
+    {
+        submitting = true;
+        error = null;
+        var result = await Api.RegisterAsync(model.Username, model.Email, model.Password);
+        if (result is not null)
+        {
+            Auth.Token = result.Token;
+            Nav.NavigateTo("/home");
+        }
+        else
+        {
+            error = "Registration failed. The email may already be in use.";
+            submitting = false;
+        }
+    }
+
+    class RegisterModel
+    {
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

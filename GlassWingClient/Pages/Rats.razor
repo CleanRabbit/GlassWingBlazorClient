@@ -1,0 +1,73 @@
+@page "/rats"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Rats — GlassWing</PageTitle>
+<h1>My Rats</h1>
+
+@if (rats is null)
+{
+    <p>Loading...</p>
+}
+else if (rats.Length == 0)
+{
+    <p class="text-muted">You don't have any rats yet.</p>
+    <button class="btn btn-primary" @onclick="CreateStarterAsync" disabled="@creating">
+        @(creating ? "Creating..." : "Create Starter Rat")
+    </button>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-outline-primary btn-sm" @onclick="CreateStarterAsync" disabled="@creating">
+            @(creating ? "Creating..." : "Add Another Rat")
+        </button>
+    </div>
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Sprint</th>
+                <th>Agility</th>
+                <th>Endurance</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var rat in rats)
+            {
+                <tr @onclick="() => OpenRat(rat.Id)" style="cursor: pointer">
+                    <td>@rat.Name</td>
+                    <td>@FormatScore(rat.Fitness?.Sprint)</td>
+                    <td>@FormatScore(rat.Fitness?.Agility)</td>
+                    <td>@FormatScore(rat.Fitness?.Endurance)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    RatResponse[]? rats;
+    bool creating;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        rats = await Api.ListRatsAsync();
+    }
+
+    void OpenRat(string id) => Nav.NavigateTo($"/rats/{id}");
+
+    async Task CreateStarterAsync()
+    {
+        creating = true;
+        var rat = await Api.CreateStarterAsync();
+        if (rat is not null)
+            Nav.NavigateTo($"/rats/{rat.Id}");
+        creating = false;
+    }
+
+    static string FormatScore(StatFitness? stat) =>
+        stat is null ? "—" : stat.Score.ToString("F2");
+}

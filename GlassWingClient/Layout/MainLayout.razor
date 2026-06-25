@@ -1,0 +1,35 @@
+@inherits LayoutComponentBase
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 d-flex align-items-center justify-content-end gap-2">
+            @if (Auth.IsDevBypass)
+            {
+                <span class="badge bg-warning text-dark">Dev Bypass</span>
+            }
+            else if (Auth.IsAuthenticated)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="Logout">Logout</button>
+            }
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    void Logout()
+    {
+        Auth.Token = null;
+        Auth.IsDevBypass = false;
+        Nav.NavigateTo("/login");
+    }
+}

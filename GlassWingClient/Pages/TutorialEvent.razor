@@ -1,0 +1,84 @@
+@page "/events/tutorial"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Tutorial Event — GlassWing</PageTitle>
+<h1>Tutorial Event</h1>
+
+@if (rats is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-5">
+            <div class="mb-3">
+                <label class="form-label">Select Rat</label>
+                <select class="form-select" @bind="selectedRatId">
+                    <option value="">— choose a rat —</option>
+                    @foreach (var r in rats)
+                    {
+                        <option value="@r.Id">@r.Name</option>
+                    }
+                </select>
+            </div>
+            <button class="btn btn-primary"
+                    @onclick="RunAsync"
+                    disabled="@(string.IsNullOrEmpty(selectedRatId) || running)">
+                @(running ? "Running..." : "Run Tutorial")
+            </button>
+
+            @if (rats.Length == 0)
+            {
+                <p class="text-muted mt-3">No rats yet. <a href="/rats">Create one first.</a></p>
+            }
+        </div>
+    </div>
+
+    @if (result is not null)
+    {
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Event Complete!</h5>
+                <p class="mb-1">New currency balance: <strong>@result.NewCurrencyBalance</strong></p>
+                @if (result.Event is not null)
+                {
+                    <details class="mt-2">
+                        <summary class="text-muted small">Event details</summary>
+                        <pre class="small mt-2 text-break">@result.Event.Value.GetRawText()</pre>
+                    </details>
+                }
+            </div>
+        </div>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger mt-3">@error</div>
+    }
+}
+
+@code {
+    RatResponse[]? rats;
+    string selectedRatId = "";
+    bool running;
+    TutorialEventResponse? result;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        rats = await Api.ListRatsAsync() ?? [];
+    }
+
+    async Task RunAsync()
+    {
+        running = true;
+        result = null;
+        error = null;
+        result = await Api.RunTutorialAsync(selectedRatId);
+        if (result is null) error = "Event failed. Try a different rat.";
+        running = false;
+    }
+}

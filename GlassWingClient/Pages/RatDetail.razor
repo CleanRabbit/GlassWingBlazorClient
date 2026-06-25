@@ -1,0 +1,149 @@
+@page "/rats/{Id}"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>@(rat?.Name ?? "Rat") — GlassWing</PageTitle>
+
+@if (rat is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/rats">Rats</a></li>
+            <li class="breadcrumb-item active">@rat.Name</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        @if (!renaming)
+        {
+            <h1 class="mb-0">@rat.Name</h1>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
+        }
+        else
+        {
+            <input class="form-control w-auto" @bind="newName" />
+            <button class="btn btn-sm btn-primary" @onclick="ConfirmRenameAsync">Save</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => renaming = false">Cancel</button>
+        }
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Fitness</h6>
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            <tr><th>Sprint</th><td>@FormatStat(rat.Fitness?.Sprint)</td></tr>
+                            <tr><th>Agility</th><td>@FormatStat(rat.Fitness?.Agility)</td></tr>
+                            <tr><th>Endurance</th><td>@FormatStat(rat.Fitness?.Endurance)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Health</h6>
+                    <pre class="small mb-0">@(rat.HealthState?.GetRawText() ?? "—")</pre>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Tricks</h6>
+                    @if (rat.TricksLearned is { Length: > 0 })
+                    {
+                        <ul class="list-unstyled mb-0">
+                            @foreach (var trick in rat.TricksLearned)
+                            {
+                                <li>@trick</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <span class="text-muted">None yet</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h5>Training</h5>
+    <div class="d-flex gap-2 mb-2">
+        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Sprint")' disabled="@training">Sprint</button>
+        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Agility")' disabled="@training">Agility</button>
+        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Endurance")' disabled="@training">Endurance</button>
+    </div>
+    @if (trainMessage is not null)
+    {
+        <div class="alert @(trainSuccess ? "alert-success" : "alert-warning") py-2">@trainMessage</div>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    RatResponse? rat;
+    bool renaming;
+    string newName = "";
+    bool training;
+    string? trainMessage;
+    bool trainSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadRatAsync();
+    }
+
+    async Task LoadRatAsync()
+    {
+        rat = await Api.GetRatAsync(Id);
+        newName = rat?.Name ?? "";
+    }
+
+    void StartRename()
+    {
+        newName = rat?.Name ?? "";
+        renaming = true;
+    }
+
+    async Task ConfirmRenameAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        var updated = await Api.RenameRatAsync(Id, newName);
+        if (updated is not null) rat = updated;
+        renaming = false;
+    }
+
+    async Task TrainAsync(string stat)
+    {
+        training = true;
+        trainMessage = null;
+        var (updated, error) = await Api.TrainRatAsync(Id, stat);
+        if (updated is not null)
+        {
+            rat = updated;
+            trainSuccess = true;
+            trainMessage = $"Trained {stat}!";
+        }
+        else
+        {
+            trainSuccess = false;
+            trainMessage = error ?? "Training failed.";
+        }
+        training = false;
+    }
+
+    static string FormatStat(StatFitness? stat) =>
+        stat is null ? "—" : $"{stat.Score:F2} ({stat.TrainingCount} sessions)";
+}

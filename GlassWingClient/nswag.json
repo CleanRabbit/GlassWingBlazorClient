@@ -1,0 +1,19 @@
+{
+  "runtime": "Net80",
+  "documentGenerator": {
+    "fromDocument": {
+      "url": "http://localhost:5123/openapi/v1.json"
+    }
+  },
+  "codeGenerators": {
+    "openApiToCSharpClient": {
+      "namespace": "GlassWingClient.Generated",
+      "className": "GlassWingApiClient",
+      "generateClientInterfaces": true,
+      "generateResponseClasses": true,
+      "jsonLibrary": "SystemTextJson",
+      "injectHttpClient": true,
+      "output": "Generated/GlassWingApiClient.cs"
+    }
+  }
+}
