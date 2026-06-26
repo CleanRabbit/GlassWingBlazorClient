@@ -62,12 +62,36 @@ else
 
                         @* ── Header ─────────────────────────────────── *@
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <h5 class="card-title mb-0">@cage.Name</h5>
+                            @if (renamingCageId == cage.Id)
+                            {
+                                <div class="d-flex align-items-center gap-1 flex-grow-1 me-2">
+                                    <input class="form-control form-control-sm" @bind="cageRenameValue" @bind:event="oninput"
+                                           @onkeydown="e => HandleCageRenameKeydown(e, cage.Id)" />
+                                    <button class="btn btn-primary btn-sm"
+                                            disabled="@(string.IsNullOrWhiteSpace(cageRenameValue) || cageRenameBusy)"
+                                            @onclick="() => ConfirmCageRenameAsync(cage.Id)">
+                                        @(cageRenameBusy ? "..." : "Save")
+                                    </button>
+                                    <button class="btn btn-link btn-sm text-muted p-0" @onclick="CancelCageRename">✕</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-1">
+                                    <h5 class="card-title mb-0">@cage.Name</h5>
+                                    <button class="btn btn-link btn-sm text-muted p-0 ms-1" style="line-height:1"
+                                            @onclick="() => StartCageRename(cage)" title="Rename cage">✏</button>
+                                </div>
+                            }
                             @if (cage.Type?.Tier is { } tier)
                             {
                                 <span class="badge @TierBadgeClass(tier)">@tier</span>
                             }
                         </div>
+                        @if (cageRenameError is not null && renamingCageId == cage.Id)
+                        {
+                            <div class="alert alert-danger py-1 px-2 small mb-1">@cageRenameError</div>
+                        }
                         @if (cage.Type is { } ct)
                         {
                             <div class="text-muted small mb-2">
@@ -143,37 +167,83 @@ else
                             var hasBowls       = cage.FoodBowls    is { Length: > 0 };
                             var hasBottles     = cage.WaterBottles  is { Length: > 0 };
                             var hasAccessories = cage.Accessories   is { Length: > 0 };
+                            var canAddBowl     = (cage.Type?.MaxFoodBowlSlots ?? 0) > (cage.FoodBowls?.Length ?? 0);
+                            var canAddBottle   = (cage.Type?.MaxWaterBottleSlots ?? 0) > (cage.WaterBottles?.Length ?? 0);
+                            var bowlVal        = bowlPickerValues.GetValueOrDefault(cage.Id, string.Empty);
+                            var bottleVal      = bottlePickerValues.GetValueOrDefault(cage.Id, string.Empty);
                         }
-                        @if (hasBowls || hasBottles || hasAccessories)
+                        @if (hasBowls || hasBottles || hasAccessories || canAddBowl || canAddBottle)
                         {
                             <hr class="my-2" />
                             <div class="text-muted small mb-1">Contents</div>
-                            <ul class="list-unstyled small mb-0">
-                                @if (hasBowls)
+                            <ul class="list-unstyled small mb-2">
+                                @foreach (var bowl in cage.FoodBowls ?? [])
                                 {
-                                    @foreach (var bowl in cage.FoodBowls!)
-                                    {
-                                        <li>
+                                    <li class="d-flex justify-content-between align-items-center mb-1">
+                                        <span>
                                             <span class="text-muted">Bowl</span>
                                             · @bowl.Name
-                                            <span class="text-muted">
-                                                (@bowl.CapacityRatDays rat-day@(bowl.CapacityRatDays != 1 ? "s" : ""))
-                                            </span>
-                                        </li>
-                                    }
+                                            <span class="text-muted">(@bowl.CapacityRatDays rd)</span>
+                                        </span>
+                                        <button class="btn btn-link btn-sm text-danger p-0 ms-2"
+                                                disabled="@bowlsBusy.Contains(cage.Id)"
+                                                @onclick="() => RemoveBowlAsync(cage.Id, bowl.Id)">Remove</button>
+                                    </li>
                                 }
-                                @if (hasBottles)
+                                @if (canAddBowl)
                                 {
-                                    @foreach (var bottle in cage.WaterBottles!)
+                                    @if (bowlErrors.TryGetValue(cage.Id, out var bowlErr) && bowlErr is not null)
                                     {
-                                        <li>
+                                        <li class="text-danger small">@bowlErr</li>
+                                    }
+                                    <li class="d-flex align-items-center gap-1 mt-1">
+                                        <select class="form-select form-select-sm" style="max-width:160px"
+                                                value="@bowlVal"
+                                                @onchange="e => bowlPickerValues[cage.Id] = e.Value?.ToString() ?? string.Empty">
+                                            <option value="">+ Add bowl...</option>
+                                            @foreach (var bt in BowlTypes)
+                                            {
+                                                <option value="@bt.Id">@bt.Name (@bt.CapacityRatDays rd)</option>
+                                            }
+                                        </select>
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                disabled="@(bowlsBusy.Contains(cage.Id) || string.IsNullOrEmpty(bowlVal))"
+                                                @onclick="() => AddBowlAsync(cage.Id)">Add</button>
+                                    </li>
+                                }
+                                @foreach (var bottle in cage.WaterBottles ?? [])
+                                {
+                                    <li class="d-flex justify-content-between align-items-center mb-1">
+                                        <span>
                                             <span class="text-muted">Bottle</span>
                                             · @bottle.Name
-                                            <span class="text-muted">
-                                                (@bottle.CapacityRatDays rat-day@(bottle.CapacityRatDays != 1 ? "s" : ""))
-                                            </span>
-                                        </li>
+                                            <span class="text-muted">(@bottle.CapacityRatDays rd)</span>
+                                        </span>
+                                        <button class="btn btn-link btn-sm text-danger p-0 ms-2"
+                                                disabled="@bottlesBusy.Contains(cage.Id)"
+                                                @onclick="() => RemoveBottleAsync(cage.Id, bottle.Id)">Remove</button>
+                                    </li>
+                                }
+                                @if (canAddBottle)
+                                {
+                                    @if (bottleErrors.TryGetValue(cage.Id, out var bottleErr) && bottleErr is not null)
+                                    {
+                                        <li class="text-danger small">@bottleErr</li>
                                     }
+                                    <li class="d-flex align-items-center gap-1 mt-1">
+                                        <select class="form-select form-select-sm" style="max-width:160px"
+                                                value="@bottleVal"
+                                                @onchange="e => bottlePickerValues[cage.Id] = e.Value?.ToString() ?? string.Empty">
+                                            <option value="">+ Add bottle...</option>
+                                            @foreach (var bt in BottleTypes)
+                                            {
+                                                <option value="@bt.Id">@bt.Name (@bt.CapacityRatDays rd)</option>
+                                            }
+                                        </select>
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                disabled="@(bottlesBusy.Contains(cage.Id) || string.IsNullOrEmpty(bottleVal))"
+                                                @onclick="() => AddBottleAsync(cage.Id)">Add</button>
+                                    </li>
                                 }
                                 @if (hasAccessories)
                                 {
@@ -194,23 +264,48 @@ else
                         }
 
                         @* ── Training ───────────────────────────────── *@
-                        @if (cage.Regime is not null)
-                        {
-                            <hr class="my-2" />
-                            <div class="small">
-                                <span class="text-muted">Regime</span> @cage.Regime.Name
-                                @if (cage.TrainingEfficacy is { } eff)
+                        <hr class="my-2" />
+                        <div class="small">
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <span class="text-muted">Regime</span>
+                                @if (settingRegimeCageId == cage.Id)
                                 {
-                                    <div class="text-muted mt-1">
-                                        <span class="@EfficacyClass(eff.Sprint)">Sprint ×@eff.Sprint.ToString("F2")</span>
-                                        <span class="mx-1">·</span>
-                                        <span class="@EfficacyClass(eff.Agility)">Agi ×@eff.Agility.ToString("F2")</span>
-                                        <span class="mx-1">·</span>
-                                        <span class="@EfficacyClass(eff.Endurance)">End ×@eff.Endurance.ToString("F2")</span>
-                                    </div>
+                                    <select class="form-select form-select-sm d-inline-block" style="max-width:165px" @bind="regimePickerValue">
+                                        <option value="">— none —</option>
+                                        @foreach (var r in TrainingRegimes)
+                                        {
+                                            <option value="@r.Id">@r.Name</option>
+                                        }
+                                    </select>
+                                    <button class="btn btn-primary btn-sm" disabled="@regimeBusy"
+                                            @onclick="() => SetRegimeAsync(cage.Id)">
+                                        @(regimeBusy ? "..." : "Set")
+                                    </button>
+                                    <button class="btn btn-link btn-sm text-muted p-0"
+                                            @onclick="() => { settingRegimeCageId = null; regimeError = null; }">Cancel</button>
+                                }
+                                else
+                                {
+                                    <span>@(cage.Regime?.Name ?? "None")</span>
+                                    <button class="btn btn-link btn-sm text-muted p-0"
+                                            @onclick="() => StartRegimePicker(cage)">Change</button>
                                 }
                             </div>
-                        }
+                            @if (regimeError is not null && settingRegimeCageId == cage.Id)
+                            {
+                                <div class="text-danger mb-1">@regimeError</div>
+                            }
+                            @if (cage.TrainingEfficacy is { } eff)
+                            {
+                                <div class="text-muted">
+                                    <span class="@EfficacyClass(eff.Sprint)">Sprint ×@eff.Sprint.ToString("F2")</span>
+                                    <span class="mx-1">·</span>
+                                    <span class="@EfficacyClass(eff.Agility)">Agi ×@eff.Agility.ToString("F2")</span>
+                                    <span class="mx-1">·</span>
+                                    <span class="@EfficacyClass(eff.Endurance)">End ×@eff.Endurance.ToString("F2")</span>
+                                </div>
+                            }
+                        </div>
 
                     </div>
                 </div>
@@ -220,13 +315,54 @@ else
 }
 
 @code {
+    record TrainingRegimeDef(string Id, string Name);
+    record BowlTypeDef(string Id, string Name, int CapacityRatDays);
+    record BottleTypeDef(string Id, string Name, int CapacityRatDays);
+
+    static readonly TrainingRegimeDef[] TrainingRegimes =
+    [
+        new("track-runs",         "Track Runs"),
+        new("furniture-scramble", "Furniture Scramble"),
+        new("dash-drills",        "Dash Drills"),
+        new("tunnel-rush",        "Tunnel Rush"),
+        new("endurance-circuit",  "Endurance Circuit"),
+    ];
+
+    static readonly BowlTypeDef[] BowlTypes =
+    [
+        new("food-bowl-small",  "Small",  1),
+        new("food-bowl-medium", "Medium", 3),
+        new("food-bowl-large",  "Large",  5),
+    ];
+
+    static readonly BottleTypeDef[] BottleTypes =
+    [
+        new("water-bottle-small",  "Small",  1),
+        new("water-bottle-medium", "Medium", 3),
+        new("water-bottle-large",  "Large",  5),
+    ];
+
     HomeResponse? home;
     GameSettingsResponse? gameSettings;
     bool loaded;
     string? loadError;
     bool renaming;
     string renameValue = "";
+    string? renamingCageId;
+    string cageRenameValue = string.Empty;
+    bool cageRenameBusy;
+    string? cageRenameError;
+    string? settingRegimeCageId;
+    string regimePickerValue = string.Empty;
+    bool regimeBusy;
+    string? regimeError;
     readonly HashSet<string> busyCages = [];
+    readonly Dictionary<string, string> bowlPickerValues = [];
+    readonly Dictionary<string, string> bottlePickerValues = [];
+    readonly HashSet<string> bowlsBusy = [];
+    readonly HashSet<string> bottlesBusy = [];
+    readonly Dictionary<string, string?> bowlErrors = [];
+    readonly Dictionary<string, string?> bottleErrors = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -279,6 +415,132 @@ else
         var (data, _) = await Api.GetHomeAsync();
         if (data is not null) home = data;
         renaming = false;
+    }
+
+    void StartCageRename(CageResponse cage)
+    {
+        renamingCageId = cage.Id;
+        cageRenameValue = cage.Name;
+        cageRenameError = null;
+    }
+
+    void CancelCageRename()
+    {
+        renamingCageId = null;
+        cageRenameError = null;
+    }
+
+    async Task HandleCageRenameKeydown(KeyboardEventArgs e, string cageId)
+    {
+        if (e.Key == "Enter") await ConfirmCageRenameAsync(cageId);
+        else if (e.Key == "Escape") CancelCageRename();
+    }
+
+    async Task ConfirmCageRenameAsync(string cageId)
+    {
+        if (string.IsNullOrWhiteSpace(cageRenameValue)) return;
+        cageRenameBusy = true;
+        cageRenameError = null;
+        var (success, error) = await Api.RenameCageAsync(cageId, cageRenameValue.Trim());
+        if (success)
+        {
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+            renamingCageId = null;
+        }
+        else
+        {
+            cageRenameError = error ?? "Rename failed.";
+        }
+        cageRenameBusy = false;
+    }
+
+    void StartRegimePicker(CageResponse cage)
+    {
+        settingRegimeCageId = cage.Id;
+        regimePickerValue = cage.Regime?.Id ?? string.Empty;
+        regimeError = null;
+    }
+
+    async Task SetRegimeAsync(string cageId)
+    {
+        regimeBusy = true;
+        regimeError = null;
+        var regimeId = string.IsNullOrEmpty(regimePickerValue) ? null : regimePickerValue;
+        var success = await Api.SetRegimeAsync(cageId, regimeId);
+        if (success)
+        {
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+            settingRegimeCageId = null;
+        }
+        else
+        {
+            regimeError = "Failed to set regime.";
+        }
+        regimeBusy = false;
+    }
+
+    async Task AddBowlAsync(string cageId)
+    {
+        var typeId = bowlPickerValues.GetValueOrDefault(cageId, string.Empty);
+        if (string.IsNullOrEmpty(typeId)) return;
+        bowlsBusy.Add(cageId);
+        bowlErrors.Remove(cageId);
+        var (success, error) = await Api.InstallBowlAsync(cageId, typeId);
+        if (success)
+        {
+            bowlPickerValues.Remove(cageId);
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+        }
+        else
+        {
+            bowlErrors[cageId] = error ?? "Failed to install bowl.";
+        }
+        bowlsBusy.Remove(cageId);
+    }
+
+    async Task RemoveBowlAsync(string cageId, string bowlId)
+    {
+        bowlsBusy.Add(cageId);
+        bowlErrors.Remove(cageId);
+        if (!await Api.RemoveBowlAsync(cageId, bowlId))
+            bowlErrors[cageId] = "Failed to remove bowl.";
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
+        bowlsBusy.Remove(cageId);
+    }
+
+    async Task AddBottleAsync(string cageId)
+    {
+        var typeId = bottlePickerValues.GetValueOrDefault(cageId, string.Empty);
+        if (string.IsNullOrEmpty(typeId)) return;
+        bottlesBusy.Add(cageId);
+        bottleErrors.Remove(cageId);
+        var (success, error) = await Api.InstallBottleAsync(cageId, typeId);
+        if (success)
+        {
+            bottlePickerValues.Remove(cageId);
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+        }
+        else
+        {
+            bottleErrors[cageId] = error ?? "Failed to install bottle.";
+        }
+        bottlesBusy.Remove(cageId);
+    }
+
+    async Task RemoveBottleAsync(string cageId, string bottleId)
+    {
+        bottlesBusy.Add(cageId);
+        bottleErrors.Remove(cageId);
+        if (!await Api.RemoveBottleAsync(cageId, bottleId))
+            bottleErrors[cageId] = "Failed to remove bottle.";
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
+        bottlesBusy.Remove(cageId);
     }
 
     async Task RefillFoodAsync(string cageId)

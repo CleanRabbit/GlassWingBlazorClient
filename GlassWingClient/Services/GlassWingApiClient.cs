@@ -95,6 +95,14 @@ public class GlassWingApiClient(HttpClient http)
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<(bool Success, string? Error)> RenameCageAsync(string cageId, string name)
+    {
+        var resp = await http.PatchAsJsonAsync($"/api/home/cages/{cageId}/name", new { name }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     public async Task<bool> RefillFoodAsync(string cageId)
     {
         var resp = await http.PostAsync($"/api/home/cages/{cageId}/food", null);
@@ -112,6 +120,34 @@ public class GlassWingApiClient(HttpClient http)
         var url = $"/api/home/cages/{cageId}/regime";
         if (regimeId is not null) url += $"?regimeId={Uri.EscapeDataString(regimeId)}";
         var resp = await http.PostAsync(url, null);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<(bool Success, string? Error)> InstallBowlAsync(string cageId, string bowlTypeId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bowls", new { bowlTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<bool> RemoveBowlAsync(string cageId, string bowlId)
+    {
+        var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/bowls/{bowlId}");
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<(bool Success, string? Error)> InstallBottleAsync(string cageId, string bottleTypeId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bottles", new { bottleTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<bool> RemoveBottleAsync(string cageId, string bottleId)
+    {
+        var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/bottles/{bottleId}");
         return resp.IsSuccessStatusCode;
     }
 
