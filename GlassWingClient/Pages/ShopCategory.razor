@@ -65,7 +65,7 @@ else
                             <div class="d-flex justify-content-between align-items-center mt-auto">
                                 <strong>@item.Price cr</strong>
                                 <button class="btn btn-sm btn-primary"
-                                        @onclick="() => BuyCageAsync(item.Id, $"{item.Brand} {item.ModelName}")"
+                                        @onclick="() => BuyCageAsync(item.Id, item.Brand + ' ' + item.ModelName)"
                                         disabled="@busy">
                                     Buy
                                 </button>

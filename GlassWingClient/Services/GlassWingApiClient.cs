@@ -135,6 +135,58 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    public async Task<LobbyResponse[]?> GetOpenLobbiesAsync()
+    {
+        var resp = await http.GetAsync("/api/events");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<LobbyResponse[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<LobbyResponse?> GetLobbyAsync(string lobbyId)
+    {
+        var resp = await http.GetAsync($"/api/events/{lobbyId}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<LobbyResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(LobbyResultEntryResponse[]? Results, string? Error)> GetLobbyResultsAsync(string lobbyId)
+    {
+        var resp = await http.GetAsync($"/api/events/{lobbyId}/results");
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<LobbyResultEntryResponse[]>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(LobbyResponse? Lobby, string? Error)> CreateLobbyAsync(string eventDefinitionId, string ratId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/events/lobbies", new { eventDefinitionId, ratId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<LobbyResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> EnterLobbyAsync(string lobbyId, string ratId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/events/{lobbyId}/enter", new { ratId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<PlayerEventsResponse?> GetMyEventsAsync(int? limit = null)
+    {
+        var url = limit.HasValue ? $"/api/events/me?limit={limit}" : "/api/events/me";
+        var resp = await http.GetAsync(url);
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<PlayerEventsResponse>(JsonOpts)
+            : null;
+    }
+
     // --- Shop ---
 
     public async Task<ShopCatalogueResponse?> GetShopCatalogueAsync()

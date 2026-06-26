@@ -1,122 +1,412 @@
 @page "/events"
 @inject GlassWingApiClient Api
 @inject AuthStateService Auth
+@inject PlayerStateService PlayerState
 @inject NavigationManager Nav
 
 <PageTitle>Events — GlassWing</PageTitle>
 <h1 class="mb-4">Events</h1>
 
-<div class="row">
-    <div class="col-md-5">
+<!-- Getting Started -->
+<div class="card mb-4 border-secondary">
+    <div class="card-header d-flex align-items-center gap-2">
+        <span class="fw-semibold">Getting Started</span>
+        <span class="badge bg-secondary">Tutorial</span>
+    </div>
+    <div class="card-body">
+        <p class="card-text text-muted small mb-3">
+            Run a quick tutorial sprint race to get familiar with the event system.
+            In the final game this is a one-time event.
+        </p>
 
-        <div class="mb-3">
-            <label class="form-label">Event type</label>
-            <select class="form-select" @bind="selectedEventType" @bind:after="OnEventTypeChanged">
-                <option value="">— choose an event —</option>
-                @foreach (var evt in EventOptions)
-                {
-                    <option value="@evt.Key">@evt.Label</option>
-                }
-            </select>
-        </div>
-
-        @if (selectedEventType != "")
+        @if (tutorialResult is not null)
         {
-            <div class="mb-3">
-                <label class="form-label">Select rat</label>
-                @if (rats is null)
-                {
-                    <p class="text-muted small">Loading rats...</p>
-                }
-                else if (rats.Length == 0)
-                {
-                    <p class="text-muted">No rats yet. <a href="/rats">Create one first.</a></p>
-                }
-                else
-                {
-                    <select class="form-select" @bind="selectedRatId">
-                        <option value="">— choose a rat —</option>
-                        @foreach (var r in rats)
-                        {
-                            <option value="@r.Id">@r.Name</option>
-                        }
-                    </select>
-                }
+            var entry = tutorialResult.Event?.Entries.FirstOrDefault(e => e.IsPlayer);
+            <div class="alert alert-success py-2 mb-3">
+                Finished @Ordinal(entry?.Placement) with score <strong>@entry?.Score</strong>.
+                Awarded <strong>@tutorialResult.Event?.CurrencyAwarded cr</strong>.
+                New balance: <strong>@tutorialResult.NewCurrencyBalance.ToString("N0") cr</strong>.
             </div>
-
-            <button class="btn btn-primary"
-                    @onclick="RunAsync"
-                    disabled="@(string.IsNullOrEmpty(selectedRatId) || running)">
-                @(running ? "Running..." : "Run event")
-            </button>
+        }
+        @if (tutorialError is not null)
+        {
+            <div class="alert alert-danger py-2 mb-3">@tutorialError</div>
         }
 
+        @if (!tutorialExpanded)
+        {
+            <button class="btn btn-outline-secondary btn-sm" @onclick="() => { tutorialExpanded = true; tutorialResult = null; tutorialError = null; }">
+                Run Tutorial
+            </button>
+        }
+        else
+        {
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <select class="form-select form-select-sm" style="max-width: 220px" @bind="tutorialRatId">
+                    <option value="">— pick a rat —</option>
+                    @foreach (var r in rats ?? [])
+                    {
+                        <option value="@r.Id">@r.Name</option>
+                    }
+                </select>
+                <button class="btn btn-primary btn-sm"
+                        disabled="@(string.IsNullOrEmpty(tutorialRatId) || tutorialBusy)"
+                        @onclick="RunTutorialAsync">
+                    @(tutorialBusy ? "Running..." : "Run")
+                </button>
+                <button class="btn btn-link btn-sm text-muted p-0"
+                        @onclick="() => { tutorialExpanded = false; tutorialRatId = string.Empty; }">
+                    Cancel
+                </button>
+            </div>
+        }
     </div>
 </div>
 
-@if (result is not null)
-{
-    <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="card-title">Event complete!</h5>
-            <p class="mb-1">New currency balance: <strong>@result.NewCurrencyBalance</strong></p>
-            @if (result.Event is not null)
-            {
-                <details class="mt-2">
-                    <summary class="text-muted small">Event details</summary>
-                    <pre class="small mt-2 text-break">@result.Event.Value.GetRawText()</pre>
-                </details>
-            }
+<!-- Two-panel layout -->
+<div class="row g-4 mb-4">
+
+    <!-- Live Lobbies -->
+    <div class="col-lg-7">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">Live Lobbies</h4>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshAsync" disabled="@lobbiesLoading">
+                @(lobbiesLoading ? "Refreshing..." : "Refresh")
+            </button>
         </div>
+
+        @if (lobbiesLoading)
+        {
+            <p class="text-muted small">Loading lobbies...</p>
+        }
+        else if (lobbies is null)
+        {
+            <p class="text-muted small">Failed to load lobbies.</p>
+        }
+        else if (lobbies.Length == 0)
+        {
+            <p class="text-muted small">No open lobbies right now. Check back soon or create your own.</p>
+        }
+        else
+        {
+            @foreach (var lobby in lobbies)
+            {
+                var fee = EntryFee(lobby.EventDefinitionId);
+                var isActive = activeLobbyId == lobby.Id;
+                <div class="card mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="fw-semibold me-2">@lobby.EventName</span>
+                                <span class="badge @TypeBadgeClass(lobby.EventType) me-1">@TypeLabel(lobby.EventType)</span>
+                                @if (fee > 0)
+                                {
+                                    <span class="badge bg-light text-dark border">@fee cr</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-success border">Free</span>
+                                }
+                            </div>
+                            <button class="btn btn-outline-primary btn-sm ms-2"
+                                    @onclick="() => ToggleLobbyEntry(lobby.Id)"
+                                    disabled="@(entryBusy && isActive)">
+                                @(isActive ? "Cancel" : "Enter")
+                            </button>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            Runs at @lobby.ScheduledRunAt.ToLocalTime().ToString("HH:mm") &middot; @lobby.EntrantsCount/@lobby.PlayerSlots slots
+                        </div>
+
+                        @if (isActive)
+                        {
+                            <div class="mt-2 pt-2 border-top d-flex align-items-center gap-2 flex-wrap">
+                                <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId">
+                                    <option value="">— pick a rat —</option>
+                                    @foreach (var r in rats ?? [])
+                                    {
+                                        <option value="@r.Id">@r.Name</option>
+                                    }
+                                </select>
+                                @if (fee > 0)
+                                {
+                                    <span class="text-muted small">Entry: @fee cr</span>
+                                }
+                                <button class="btn btn-primary btn-sm"
+                                        disabled="@(string.IsNullOrEmpty(activeRatId) || entryBusy)"
+                                        @onclick="() => EnterLobbyAsync(lobby)">
+                                    @(entryBusy ? "Entering..." : "Confirm")
+                                </button>
+                            </div>
+                            @if (entryError is not null)
+                            {
+                                <div class="alert alert-danger py-1 px-2 small mt-2 mb-0">@entryError</div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        }
     </div>
-}
-else if (error is not null)
+
+    <!-- Create Event -->
+    <div class="col-lg-5">
+        <h4 class="mb-3">Create Event</h4>
+        @foreach (var def in PlayerInitiatedDefs)
+        {
+            var isActive = activeCreateId == def.Id;
+            <div class="card mb-2">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="fw-semibold me-2">@def.Name</span>
+                            <span class="badge @TypeBadgeClass(def.EventType)">@TypeLabel(def.EventType)</span>
+                        </div>
+                        <button class="btn btn-outline-success btn-sm ms-2"
+                                @onclick="() => ToggleCreate(def.Id)"
+                                disabled="@(createBusy && isActive)">
+                            @(isActive ? "Cancel" : "Create")
+                        </button>
+                    </div>
+                    <div class="text-muted small mt-1">Free entry &middot; 30 min lobby &middot; 300 / 100 / 25 cr</div>
+
+                    @if (isActive)
+                    {
+                        <div class="mt-2 pt-2 border-top d-flex align-items-center gap-2 flex-wrap">
+                            <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId">
+                                <option value="">— pick a rat —</option>
+                                @foreach (var r in rats ?? [])
+                                {
+                                    <option value="@r.Id">@r.Name</option>
+                                }
+                            </select>
+                            <button class="btn btn-success btn-sm"
+                                    disabled="@(string.IsNullOrEmpty(activeRatId) || createBusy)"
+                                    @onclick="() => CreateLobbyAsync(def.Id)">
+                                @(createBusy ? "Creating..." : "Create & Enter")
+                            </button>
+                        </div>
+                        @if (createError is not null)
+                        {
+                            <div class="alert alert-danger py-1 px-2 small mt-2 mb-0">@createError</div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Recently Entered -->
+@if (myEvents is not null && (myEvents.ActiveEntries.Length > 0 || myEvents.RecentResults.Length > 0))
 {
-    <div class="alert alert-danger mt-3">@error</div>
+    <h4 class="mb-3">Recently Entered</h4>
+    <div class="list-group">
+        @foreach (var entry in myEvents.ActiveEntries)
+        {
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="fw-semibold me-2">@entry.EventName</span>
+                    <span class="badge @TypeBadgeClass(entry.EventType) me-2">@TypeLabel(entry.EventType)</span>
+                    <span class="badge bg-success">Open</span>
+                </div>
+                <span class="text-muted small">Runs at @entry.ScheduledRunAt.ToLocalTime().ToString("HH:mm") &middot; @entry.EntrantsCount/@entry.PlayerSlots slots</span>
+            </div>
+        }
+        @foreach (var result in myEvents.RecentResults)
+        {
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="fw-semibold me-2">@result.EventName</span>
+                    <span class="badge @TypeBadgeClass(result.EventType) me-2">@TypeLabel(result.EventType)</span>
+                    <span class="badge bg-secondary me-2">Completed</span>
+                    <span class="text-muted small">@Ordinal(result.Placement) &middot; score @result.Score@(result.CurrencyAwarded > 0 ? $" · {result.CurrencyAwarded} cr" : "")</span>
+                </div>
+                <a href="/events/@result.LobbyId/results" class="btn btn-sm btn-outline-primary">View Results</a>
+            </div>
+        }
+    </div>
 }
 
 @code {
-    record EventOption(string Key, string Label);
+    record PlayerInitiatedDef(string Id, string Name, string EventType);
 
-    static readonly EventOption[] EventOptions =
+    static readonly PlayerInitiatedDef[] PlayerInitiatedDefs =
     [
-        new("tutorial", "Tutorial Event"),
+        new("open-sprint",    "Open Sprint",    "Sprint"),
+        new("open-agility",   "Open Agility",   "AgilityCourse"),
+        new("open-endurance", "Open Endurance", "Endurance"),
     ];
 
     RatResponse[]? rats;
-    string selectedEventType = "";
-    string selectedRatId = "";
-    bool running;
-    TutorialEventResponse? result;
-    string? error;
+    LobbyResponse[]? lobbies;
+    bool lobbiesLoading = true;
+    PlayerEventsResponse? myEvents;
+
+    // Tutorial state
+    bool tutorialExpanded;
+    string tutorialRatId = string.Empty;
+    bool tutorialBusy;
+    TutorialEventResponse? tutorialResult;
+    string? tutorialError;
+
+    // Lobby / create state
+    string? activeLobbyId;
+    string? activeCreateId;
+    string activeRatId = string.Empty;
+    bool entryBusy;
+    bool createBusy;
+    string? entryError;
+    string? createError;
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await Task.WhenAll(LoadRatsAsync(), RefreshLobbiesAsync(), RefreshMyEventsAsync());
     }
 
-    async Task OnEventTypeChanged()
+    async Task LoadRatsAsync() =>
+        rats = await Api.ListRatsAsync() ?? [];
+
+    async Task RefreshAsync()
     {
-        selectedRatId = "";
-        result = null;
-        error = null;
-        if (selectedEventType != "" && rats is null)
-            rats = await Api.ListRatsAsync() ?? [];
+        await Task.WhenAll(RefreshLobbiesAsync(), RefreshMyEventsAsync());
     }
 
-    async Task RunAsync()
+    async Task RefreshLobbiesAsync()
     {
-        running = true;
-        result = null;
-        error = null;
+        lobbiesLoading = true;
+        lobbies = await Api.GetOpenLobbiesAsync();
+        lobbiesLoading = false;
+    }
 
-        result = selectedEventType switch
+    async Task RefreshMyEventsAsync() =>
+        myEvents = await Api.GetMyEventsAsync();
+
+    void ToggleLobbyEntry(string lobbyId)
+    {
+        if (activeLobbyId == lobbyId)
         {
-            "tutorial" => await Api.RunTutorialAsync(selectedRatId),
-            _          => null
-        };
-
-        if (result is null) error = "Event failed — check that the rat is eligible.";
-        running = false;
+            activeLobbyId = null;
+        }
+        else
+        {
+            activeLobbyId = lobbyId;
+            activeCreateId = null;
+            activeRatId = string.Empty;
+            entryError = null;
+        }
     }
+
+    void ToggleCreate(string definitionId)
+    {
+        if (activeCreateId == definitionId)
+        {
+            activeCreateId = null;
+        }
+        else
+        {
+            activeCreateId = definitionId;
+            activeLobbyId = null;
+            activeRatId = string.Empty;
+            createError = null;
+        }
+    }
+
+    async Task RunTutorialAsync()
+    {
+        tutorialBusy = true;
+        tutorialResult = null;
+        tutorialError = null;
+        tutorialResult = await Api.RunTutorialAsync(tutorialRatId);
+        if (tutorialResult is null)
+            tutorialError = "Tutorial failed — check that the rat is eligible.";
+        else
+        {
+            PlayerState.SetCurrency(tutorialResult.NewCurrencyBalance);
+            tutorialExpanded = false;
+            tutorialRatId = string.Empty;
+        }
+        tutorialBusy = false;
+    }
+
+    async Task EnterLobbyAsync(LobbyResponse lobby)
+    {
+        entryBusy = true;
+        entryError = null;
+        var (success, error) = await Api.EnterLobbyAsync(lobby.Id, activeRatId);
+        if (success)
+        {
+            activeLobbyId = null;
+            activeRatId = string.Empty;
+            if (EntryFee(lobby.EventDefinitionId) > 0)
+            {
+                var profile = await Api.GetPlayerProfileAsync();
+                if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            }
+            await Task.WhenAll(RefreshLobbiesAsync(), RefreshMyEventsAsync());
+        }
+        else
+        {
+            entryError = error ?? "Failed to enter lobby.";
+        }
+        entryBusy = false;
+    }
+
+    async Task CreateLobbyAsync(string definitionId)
+    {
+        createBusy = true;
+        createError = null;
+        var (lobby, error) = await Api.CreateLobbyAsync(definitionId, activeRatId);
+        if (lobby is not null)
+        {
+            activeCreateId = null;
+            activeRatId = string.Empty;
+            await Task.WhenAll(RefreshLobbiesAsync(), RefreshMyEventsAsync());
+        }
+        else
+        {
+            createError = error ?? "Failed to create lobby.";
+        }
+        createBusy = false;
+    }
+
+    static int EntryFee(string definitionId) => definitionId switch
+    {
+        var id when id.StartsWith("hourly-") => 20,
+        var id when id.StartsWith("daily-")  => 50,
+        _                                     => 0,
+    };
+
+    static string TypeBadgeClass(string eventType) => eventType switch
+    {
+        "Sprint"        => "bg-warning text-dark",
+        "AgilityCourse" => "bg-success",
+        "Endurance"     => "bg-info text-dark",
+        _               => "bg-secondary"
+    };
+
+    static string TypeLabel(string eventType) => eventType switch
+    {
+        "AgilityCourse" => "Agility",
+        _               => eventType
+    };
+
+    static string StatusBadgeClass(string status) => status switch
+    {
+        "Open"      => "bg-success",
+        "Running"   => "bg-warning text-dark",
+        "Completed" => "bg-secondary",
+        "Cancelled" => "bg-danger",
+        _           => "bg-secondary"
+    };
+
+    static string? Ordinal(int? placement) => placement switch
+    {
+        1   => "1st",
+        2   => "2nd",
+        3   => "3rd",
+        int n => $"{n}th",
+        null => null
+    };
 }

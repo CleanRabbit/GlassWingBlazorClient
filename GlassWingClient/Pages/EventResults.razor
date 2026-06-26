@@ -1,0 +1,115 @@
+@page "/events/{LobbyId}/results"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Event Results — GlassWing</PageTitle>
+
+@if (loading)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (lobby is null)
+{
+    <p class="text-danger">Lobby not found.</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <a href="/events" class="btn btn-outline-secondary btn-sm me-1">← Events</a>
+        <h1 class="mb-0 me-2">@lobby.EventName</h1>
+        <span class="badge @TypeBadgeClass(lobby.EventType) fs-6">@TypeLabel(lobby.EventType)</span>
+    </div>
+
+    @if (lobby.Status != "Completed")
+    {
+        <div class="alert alert-info d-flex align-items-center gap-3 flex-wrap">
+            <span>Results not yet available. Scheduled for @lobby.ScheduledRunAt.ToLocalTime().ToString("HH:mm") local time.</span>
+            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync" disabled="@loading">Refresh</button>
+        </div>
+    }
+    else if (results is null)
+    {
+        <div class="alert alert-danger">Failed to load results.</div>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 4rem">#</th>
+                    <th>Entrant</th>
+                    <th>Score</th>
+                    <th>Prize</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in results.OrderBy(e => e.Placement))
+                {
+                    var isMe = !e.IsNpc && e.PlayerId == playerId;
+                    <tr class="@(isMe ? "table-success fw-semibold" : "")">
+                        <td>@Ordinal(e.Placement)</td>
+                        <td>
+                            @e.EntrantLabel
+                            @if (e.IsNpc) { <span class="text-muted small ms-1">(NPC)</span> }
+                            @if (isMe) { <span class="badge bg-success ms-2">You</span> }
+                        </td>
+                        <td>@e.Score</td>
+                        <td>@(e.CurrencyAwarded > 0 ? $"{e.CurrencyAwarded} cr" : "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter] public string LobbyId { get; set; } = string.Empty;
+
+    bool loading = true;
+    LobbyResponse? lobby;
+    LobbyResultEntryResponse[]? results;
+    string? playerId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        var profile = await Api.GetPlayerProfileAsync();
+        playerId = profile?.PlayerId;
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        loading = true;
+        lobby = await Api.GetLobbyAsync(LobbyId);
+        if (lobby?.Status == "Completed")
+        {
+            var (r, _) = await Api.GetLobbyResultsAsync(LobbyId);
+            results = r;
+        }
+        loading = false;
+    }
+
+    static string TypeBadgeClass(string eventType) => eventType switch
+    {
+        "Sprint"        => "bg-warning text-dark",
+        "AgilityCourse" => "bg-success",
+        "Endurance"     => "bg-info text-dark",
+        _               => "bg-secondary"
+    };
+
+    static string TypeLabel(string eventType) => eventType switch
+    {
+        "AgilityCourse" => "Agility",
+        _               => eventType
+    };
+
+    static string Ordinal(int placement) => placement switch
+    {
+        1   => "1st",
+        2   => "2nd",
+        3   => "3rd",
+        int n => $"{n}th"
+    };
+}

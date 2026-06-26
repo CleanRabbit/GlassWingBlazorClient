@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace GlassWingClient.Services;
 
 public record AuthResponse(string Token, string PlayerId, string Username);
@@ -114,7 +112,16 @@ public record AutoFillNotification(string CageId, string CageName, string Type);
 
 // --- Events ---
 
-public record TutorialEventResponse(JsonElement? Event, decimal NewCurrencyBalance);
+public record TutorialEventResponse(TutorialEventResult? Event, decimal NewCurrencyBalance);
+public record TutorialEventResult(string EventName, string EventType, DateTime CompletedAt, TutorialEventEntry[] Entries, int CurrencyAwarded);
+public record TutorialEventEntry(string ParticipantName, bool IsPlayer, int Score, int Placement);
+
+public record LobbyResponse(string Id, string EventDefinitionId, string EventName, string EventType, DateTime ScheduledRunAt, string Status, int EntrantsCount, int PlayerSlots);
+public record LobbyResultEntryResponse(string? PlayerId, string EntrantLabel, bool IsNpc, int Score, int Placement, int CurrencyAwarded);
+
+public record PlayerEventsResponse(PlayerActiveEntry[] ActiveEntries, PlayerRecentResult[] RecentResults);
+public record PlayerActiveEntry(string LobbyId, string EventDefinitionId, string EventName, string EventType, DateTime ScheduledRunAt, int EntrantsCount, int PlayerSlots, string RatId);
+public record PlayerRecentResult(string LobbyId, string EventDefinitionId, string EventName, string EventType, DateTime CompletedAt, string RatId, int Placement, int EntrantsCount, int CurrencyAwarded, int Score);
 
 // --- Shop ---
 
