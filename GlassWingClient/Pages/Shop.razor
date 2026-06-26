@@ -1,0 +1,42 @@
+@page "/shop"
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Shop — GlassWing</PageTitle>
+
+<h1 class="mb-4">Shop</h1>
+
+<div class="row g-3">
+    @foreach (var cat in Categories)
+    {
+        <div class="col-sm-6 col-lg-4">
+            <a href="@($"/shop/{cat.Slug}")" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body py-4">
+                        <h5 class="card-title">@cat.Name</h5>
+                        <p class="card-text text-muted small mb-0">@cat.Description</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    record ShopCategory(string Slug, string Name, string Description);
+
+    static readonly ShopCategory[] Categories =
+    [
+        new("cages",       "Cages",         "Upgrade your rats' living space"),
+        new("accessories", "Accessories",   "Enrichment items to keep your rats happy"),
+        new("bowls",       "Food Bowls",    "Bowls for storing and serving food"),
+        new("bottles",     "Water Bottles", "Bottles to keep your rats hydrated"),
+        new("food-bins",   "Food Storage",  "Bulk food storage bins for your home"),
+        new("food",        "Food",          "Premium nutrition for peak performance"),
+    ];
+
+    protected override void OnInitialized()
+    {
+        if (!Auth.IsAuthenticated) Nav.NavigateTo("/login");
+    }
+}

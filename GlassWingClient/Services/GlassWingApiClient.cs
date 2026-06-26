@@ -134,4 +134,103 @@ public class GlassWingApiClient(HttpClient http)
             ? await resp.Content.ReadFromJsonAsync<TutorialEventResponse>(JsonOpts)
             : null;
     }
+
+    // --- Shop ---
+
+    public async Task<ShopCatalogueResponse?> GetShopCatalogueAsync()
+    {
+        var resp = await http.GetAsync("/api/shop/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<ShopCatalogueResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(CagePurchaseResponse? Result, string? Error)> BuyCageAsync(string cageTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/cage", new { cageTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CagePurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(InventoryPurchaseResponse? Result, string? Error)> BuyAccessoryAsync(string accessoryTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/accessory", new { accessoryTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<InventoryPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(InventoryPurchaseResponse? Result, string? Error)> BuyBowlAsync(string bowlTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/bowl", new { bowlTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<InventoryPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(InventoryPurchaseResponse? Result, string? Error)> BuyBottleAsync(string bottleTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/bottle", new { bottleTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<InventoryPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(FoodStorageBinPurchaseResponse? Result, string? Error)> BuyFoodStorageBinAsync()
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/food-bin", new { }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<FoodStorageBinPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(FoodPurchaseResponse? Result, string? Error)> BuyFoodAsync(string binId, string foodTypeId, int ratDays)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/food", new { binId, foodTypeId, ratDays }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<FoodPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    // --- Inventory ---
+
+    public async Task<InventoryResponse?> GetInventoryAsync()
+    {
+        var resp = await http.GetAsync("/api/inventory/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<InventoryResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(PlaceInventoryItemResponse? Result, string? Error)> PlaceInventoryItemAsync(string itemId, string cageId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/inventory/{itemId}/place", new { cageId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<PlaceInventoryItemResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<bool> RemoveInventoryItemAsync(string itemId)
+    {
+        var resp = await http.DeleteAsync($"/api/inventory/{itemId}");
+        return resp.IsSuccessStatusCode;
+    }
+
+    // --- Player ---
+
+    public async Task<PlayerProfileResponse?> GetPlayerProfileAsync()
+    {
+        var resp = await http.GetAsync("/api/players/me");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<PlayerProfileResponse>(JsonOpts)
+            : null;
+    }
 }

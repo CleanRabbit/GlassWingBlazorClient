@@ -1,6 +1,9 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthStateService Auth
 @inject NavigationManager Nav
+@inject GlassWingApiClient Api
+@inject PlayerStateService PlayerState
 
 <div class="page">
     <div class="sidebar">
@@ -9,6 +12,10 @@
 
     <main>
         <div class="top-row px-4 d-flex align-items-center justify-content-end gap-2">
+            @if (PlayerState.Currency.HasValue)
+            {
+                <span class="badge bg-dark">@PlayerState.Currency.Value.ToString("N0") cr</span>
+            }
             @if (Auth.IsDevBypass)
             {
                 <span class="badge bg-warning text-dark">Dev Bypass</span>
@@ -26,10 +33,23 @@
 </div>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        PlayerState.OnChange += StateHasChanged;
+        if (Auth.IsAuthenticated)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        }
+    }
+
     void Logout()
     {
         Auth.Token = null;
         Auth.IsDevBypass = false;
+        PlayerState.SetCurrency(0);
         Nav.NavigateTo("/login");
     }
+
+    public void Dispose() => PlayerState.OnChange -= StateHasChanged;
 }

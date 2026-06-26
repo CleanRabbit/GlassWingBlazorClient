@@ -52,7 +52,15 @@ public record MorphologyProfile(string? Sex, int BodySize);
 
 // --- Home ---
 
-public record HomeResponse(string Id, string OwnerId, string Name, CageResponse[] Cages);
+public record HomeResponse(
+    string Id,
+    string OwnerId,
+    string Name,
+    CageResponse[] Cages,
+    HomeFoodStorageBinInfo[]? FoodStorageBins = null,
+    int? CageSlots = null,
+    int? CagesOccupied = null,
+    AutoFillNotification[]? AutoFills = null);
 
 public record CageResponse(
     string Id,
@@ -99,6 +107,43 @@ public record GameSettingsResponse(
     double TrainingCooldownScale,
     double IllnessProgressionScale);
 
+// --- Home extras ---
+
+public record HomeFoodStorageBinInfo(string Id, string Name, string? FoodTypeId, string? FoodTypeName, int CapacityRatDays, int StoredRatDays);
+public record AutoFillNotification(string CageId, string CageName, string Type);
+
 // --- Events ---
 
 public record TutorialEventResponse(JsonElement? Event, decimal NewCurrencyBalance);
+
+// --- Shop ---
+
+public record ShopCatalogueResponse(
+    ShopCageType[] Cages,
+    ShopAccessoryType[] Accessories,
+    ShopFoodBowlType[] FoodBowls,
+    ShopWaterBottleType[] WaterBottles,
+    ShopFoodStorageBinType[] FoodStorageBins,
+    ShopFoodType[] Foods);
+
+public record ShopCageType(string Id, string Brand, string ModelName, string? Tier, int WidthCm, int DepthCm, int HeightCm, int MaxCapacity, int MaxFoodBowlSlots, int MaxWaterBottleSlots, int Price);
+public record ShopAccessoryType(string Id, string Name, string? Description, int BaseEnrichment, string? MinimumTier, int Price);
+public record ShopFoodBowlType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
+public record ShopWaterBottleType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
+public record ShopFoodStorageBinType(string Id, string Name, int CapacityRatDays, int Price);
+public record ShopFoodType(string Id, string Name, int QualityTier, int PricePerRatDay, double? HealthBonus, TrainingBonus? TrainingBonus);
+
+public record CagePurchaseResponse(string CageId, string CageName, string CageTypeId, decimal NewBalance);
+public record InventoryPurchaseResponse(string InventoryItemId, string TypeId, string Name, decimal NewBalance);
+public record FoodStorageBinPurchaseResponse(string BinId, int CapacityRatDays, decimal NewBalance);
+public record FoodPurchaseResponse(string BinId, string FoodTypeId, int StoredRatDays, decimal NewBalance);
+
+// --- Inventory ---
+
+public record InventoryResponse(InventoryItem[] Items);
+public record InventoryItem(string Id, string ItemType, string TypeId, string Name, string? Description, int Quantity);
+public record PlaceInventoryItemResponse(bool Success, string? Message);
+
+// --- Player ---
+
+public record PlayerProfileResponse(string PlayerId, string Username, decimal Currency);

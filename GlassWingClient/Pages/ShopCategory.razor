@@ -1,0 +1,434 @@
+@page "/shop/{Category}"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+
+<PageTitle>@CategoryTitle — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/shop">Shop</a></li>
+        <li class="breadcrumb-item active">@CategoryTitle</li>
+    </ol>
+</nav>
+
+<h2 class="mb-4">@CategoryTitle</h2>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (catalogue is null)
+{
+    <div class="alert alert-danger">Failed to load shop catalogue.</div>
+}
+else
+{
+    @if (success is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @success
+            <button type="button" class="btn-close" @onclick="() => success = null"></button>
+        </div>
+    }
+    @if (error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @error
+            <button type="button" class="btn-close" @onclick="() => error = null"></button>
+        </div>
+    }
+
+    <div class="row g-3">
+
+        @if (Category == "cages")
+        {
+            @foreach (var item in catalogue.Cages)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h5 class="card-title mb-0">@item.Brand @item.ModelName</h5>
+                                @if (item.Tier is not null)
+                                {
+                                    <span class="badge @TierBadge(item.Tier)">@item.Tier</span>
+                                }
+                            </div>
+                            <p class="text-muted small mb-2">
+                                @item.WidthCm × @item.DepthCm × @item.HeightCm cm ·
+                                Up to @item.MaxCapacity rat@(item.MaxCapacity != 1 ? "s" : "") ·
+                                @item.MaxFoodBowlSlots bowl slot@(item.MaxFoodBowlSlots != 1 ? "s" : "") ·
+                                @item.MaxWaterBottleSlots bottle slot@(item.MaxWaterBottleSlots != 1 ? "s" : "")
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyCageAsync(item.Id, $"{item.Brand} {item.ModelName}")"
+                                        disabled="@busy">
+                                    Buy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "accessories")
+        {
+            @foreach (var item in catalogue.Accessories)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                <p class="text-muted small mb-2">@item.Description</p>
+                            }
+                            <p class="small mb-2">
+                                <span class="text-muted">Enrichment</span> +@item.BaseEnrichment
+                                @if (item.MinimumTier is not null)
+                                {
+                                    <span class="ms-2 text-muted">Requires</span>
+                                    <span class="badge @TierBadge(item.MinimumTier) ms-1">@item.MinimumTier</span>
+                                }
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyAccessoryAsync(item.Id, item.Name)"
+                                        disabled="@busy">
+                                    Buy → Inventory
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "bowls")
+        {
+            @foreach (var item in catalogue.FoodBowls)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small mb-2">
+                                <span class="text-muted">Capacity</span> @item.CapacityRatDays rat-day@(item.CapacityRatDays != 1 ? "s" : "")
+                                @if (item.MinimumTier is not null)
+                                {
+                                    <span class="ms-2 text-muted">Requires</span>
+                                    <span class="badge @TierBadge(item.MinimumTier) ms-1">@item.MinimumTier</span>
+                                }
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyBowlAsync(item.Id, item.Name)"
+                                        disabled="@busy">
+                                    Buy → Inventory
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "bottles")
+        {
+            @foreach (var item in catalogue.WaterBottles)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small mb-2">
+                                <span class="text-muted">Capacity</span> @item.CapacityRatDays rat-day@(item.CapacityRatDays != 1 ? "s" : "")
+                                @if (item.MinimumTier is not null)
+                                {
+                                    <span class="ms-2 text-muted">Requires</span>
+                                    <span class="badge @TierBadge(item.MinimumTier) ms-1">@item.MinimumTier</span>
+                                }
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyBottleAsync(item.Id, item.Name)"
+                                        disabled="@busy">
+                                    Buy → Inventory
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "food-bins")
+        {
+            @foreach (var item in catalogue.FoodStorageBins)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small mb-2">
+                                <span class="text-muted">Capacity</span> @item.CapacityRatDays rat-days
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyFoodBinAsync(item.Name)"
+                                        disabled="@busy">
+                                    Buy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "food")
+        {
+            @foreach (var item in catalogue.Foods)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small mb-1">
+                                <span class="text-muted">Quality tier</span> @item.QualityTier
+                            </p>
+                            @if (item.TrainingBonus is { } tb)
+                            {
+                                <p class="small mb-1 text-muted">
+                                    Sprint ×@tb.Sprint.ToString("F2") ·
+                                    Agi ×@tb.Agility.ToString("F2") ·
+                                    End ×@tb.Endurance.ToString("F2")
+                                </p>
+                            }
+                            @if (item.HealthBonus is { } hb && hb > 0)
+                            {
+                                <p class="small mb-1">
+                                    <span class="text-muted">Health bonus</span>
+                                    <span class="text-success">+@(hb.ToString("P0"))</span>
+                                </p>
+                            }
+                            <p class="small mb-2">
+                                <strong>@item.PricePerRatDay cr</strong>
+                                <span class="text-muted">/ rat-day</span>
+                            </p>
+
+                            @if (foodBuyPanelId == item.Id)
+                            {
+                                <div class="border rounded p-2 mb-2 bg-light">
+                                    @if (home is null)
+                                    {
+                                        <p class="text-muted small mb-0">Loading storage bins...</p>
+                                    }
+                                    else
+                                    {
+                                        var bins = home.FoodStorageBins ?? [];
+                                        @if (bins.Length == 0)
+                                        {
+                                            <p class="text-muted small mb-1">No food storage bins. Buy one from <a href="/shop/food-bins">Food Storage</a>.</p>
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    @onclick="() => foodBuyPanelId = null">
+                                                Cancel
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <div class="mb-2">
+                                                <label class="form-label small">Storage bin</label>
+                                                <select class="form-select form-select-sm" @bind="selectedBinId">
+                                                    <option value="">— select —</option>
+                                                    @foreach (var bin in bins)
+                                                    {
+                                                        <option value="@bin.Id">
+                                                            @bin.Name (@bin.StoredRatDays / @bin.CapacityRatDays rd used)
+                                                        </option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small">Rat-days to buy</label>
+                                                <input class="form-control form-control-sm" type="number" min="1"
+                                                       @bind="foodRatDays" />
+                                                @if (foodRatDays > 0)
+                                                {
+                                                    <div class="text-muted small mt-1">
+                                                        Total: @(foodRatDays * item.PricePerRatDay) cr
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-primary"
+                                                        @onclick="() => ConfirmBuyFoodAsync(item.Id)"
+                                                        disabled="@(busy || string.IsNullOrEmpty(selectedBinId) || foodRatDays < 1)">
+                                                    Confirm
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary"
+                                                        @onclick="() => foodBuyPanelId = null">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="mt-auto">
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenFoodBuyPanelAsync(item.Id)"
+                                            disabled="@busy">
+                                        Buy
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter] public string Category { get; set; } = "";
+
+    ShopCatalogueResponse? catalogue;
+    HomeResponse? home;
+    bool loaded;
+    bool busy;
+    string? success;
+    string? error;
+    string? foodBuyPanelId;
+    string? selectedBinId;
+    int foodRatDays = 1;
+
+    string CategoryTitle => Category switch
+    {
+        "cages"       => "Cages",
+        "accessories" => "Accessories",
+        "bowls"       => "Food Bowls",
+        "bottles"     => "Water Bottles",
+        "food-bins"   => "Food Storage",
+        "food"        => "Food",
+        _             => "Shop"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        catalogue = await Api.GetShopCatalogueAsync();
+        loaded = true;
+    }
+
+    async Task BuyCageAsync(string typeId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyCageAsync(typeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"Purchased {name}. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    async Task BuyAccessoryAsync(string typeId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyAccessoryAsync(typeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"{name} added to your inventory. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    async Task BuyBowlAsync(string typeId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyBowlAsync(typeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"{name} added to your inventory. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    async Task BuyBottleAsync(string typeId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyBottleAsync(typeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"{name} added to your inventory. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    async Task BuyFoodBinAsync(string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyFoodStorageBinAsync();
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"{name} added to your home. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    async Task OpenFoodBuyPanelAsync(string foodTypeId)
+    {
+        foodBuyPanelId = foodTypeId;
+        selectedBinId = null;
+        foodRatDays = 1;
+        if (home is null)
+        {
+            var (data, _) = await Api.GetHomeAsync();
+            home = data;
+        }
+    }
+
+    async Task ConfirmBuyFoodAsync(string foodTypeId)
+    {
+        if (string.IsNullOrEmpty(selectedBinId) || foodRatDays < 1) return;
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyFoodAsync(selectedBinId, foodTypeId, foodRatDays);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"Stored {result.StoredRatDays} rat-days of food. New balance: {result.NewBalance:N0} cr";
+            foodBuyPanelId = null;
+        }
+        else error = err;
+        busy = false;
+    }
+
+    static string TierBadge(string? tier) => tier switch
+    {
+        "Starter" => "bg-secondary",
+        "Budget"  => "bg-info text-dark",
+        "Mid"     => "bg-info text-dark",
+        "Large"   => "bg-primary",
+        "Premium" => "bg-warning text-dark",
+        "Bespoke" => "bg-danger",
+        _         => "bg-secondary"
+    };
+}

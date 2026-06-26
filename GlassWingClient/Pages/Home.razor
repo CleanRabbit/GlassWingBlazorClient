@@ -3,6 +3,7 @@
 @inject GlassWingApiClient Api
 @inject AuthStateService Auth
 @inject NavigationManager Nav
+@inject PlayerStateService PlayerState
 
 <PageTitle>Home — GlassWing</PageTitle>
 
@@ -39,6 +40,10 @@ else
         {
             <h1 class="mb-0">@home!.Name</h1>
             <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
+        }
+        @if (PlayerState.Currency.HasValue)
+        {
+            <span class="ms-auto badge bg-dark fs-6">@PlayerState.Currency.Value.ToString("N0") cr</span>
         }
         else
         {
