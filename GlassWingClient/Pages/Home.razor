@@ -35,6 +35,29 @@ else
         </details>
     }
 
+    @if (home!.AutoFills is { Length: > 0 })
+    {
+        @for (int i = 0; i < home.AutoFills.Length; i++)
+        {
+            var idx = i;
+            var fill = home.AutoFills[idx];
+            if (!dismissedAutoFills.Contains(idx))
+            {
+                var label = fill.Type?.ToLowerInvariant() switch
+                {
+                    "food"  => "food",
+                    "water" => "water",
+                    _       => fill.Type ?? "supplies"
+                };
+                <div class="alert alert-info alert-dismissible mb-2 py-2" role="alert">
+                    Auto-filled @label in <strong>@fill.CageName</strong>.
+                    <button type="button" class="btn-close" aria-label="Dismiss"
+                            @onclick="() => dismissedAutoFills.Add(idx)"></button>
+                </div>
+            }
+        }
+    }
+
     <div class="d-flex align-items-center gap-3 mb-4">
         @if (!renaming)
         {
@@ -363,6 +386,7 @@ else
     readonly HashSet<string> bottlesBusy = [];
     readonly Dictionary<string, string?> bowlErrors = [];
     readonly Dictionary<string, string?> bottleErrors = [];
+    readonly HashSet<int> dismissedAutoFills = [];
 
     protected override async Task OnInitializedAsync()
     {
