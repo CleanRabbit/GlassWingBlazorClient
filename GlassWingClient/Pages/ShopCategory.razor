@@ -248,7 +248,7 @@ else
                                                     @foreach (var bin in bins)
                                                     {
                                                         <option value="@bin.Id">
-                                                            @bin.Name (@bin.StoredRatDays / @bin.CapacityRatDays rd used)
+                                                            Food Storage Bin (@bin.StoredRatDays.ToString("F0") / @bin.CapacityRatDays rd used)
                                                         </option>
                                                     }
                                                 </select>

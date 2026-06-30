@@ -55,6 +55,8 @@ public record HomeResponse(
     string OwnerId,
     string Name,
     CageResponse[] Cages,
+    HomeCarryCaseInfo[]? CarryCases = null,
+    HomeStorageDrawerInfo[]? StorageDrawers = null,
     HomeFoodStorageBinInfo[]? FoodStorageBins = null,
     int? CageSlots = null,
     int? CagesOccupied = null,
@@ -107,7 +109,10 @@ public record GameSettingsResponse(
 
 // --- Home extras ---
 
-public record HomeFoodStorageBinInfo(string Id, string Name, string? FoodTypeId, string? FoodTypeName, int CapacityRatDays, int StoredRatDays);
+public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId);
+public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items);
+public record HomeStorageDrawerItem(string Id, string TypeId, string Kind);
+public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays);
 public record AutoFillNotification(string CageId, string CageName, string Type);
 
 // --- Events ---

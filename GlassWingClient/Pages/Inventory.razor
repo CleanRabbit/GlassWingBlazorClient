@@ -10,8 +10,19 @@
 {
     <p class="text-muted">Loading...</p>
 }
+else if (home is null)
+{
+    <div class="alert alert-danger">Failed to load home data.</div>
+}
 else
 {
+    @if (actionSuccess is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @actionSuccess
+            <button type="button" class="btn-close" @onclick="() => actionSuccess = null"></button>
+        </div>
+    }
     @if (actionError is not null)
     {
         <div class="alert alert-danger alert-dismissible fade show">
@@ -22,37 +33,33 @@ else
 
     <!-- Carry Cases -->
     <h4 class="mb-3">Carry Cases</h4>
-    @if (CarryCases.Length == 0)
+    @if ((home.CarryCases ?? []).Length == 0)
     {
         <p class="text-muted small mb-4">No carry cases. <a href="/shop/home-accessories">Buy one from the shop</a>.</p>
     }
     else
     {
         <div class="row g-3 mb-4">
-            @foreach (var cc in CarryCases)
+            @foreach (var cc in home.CarryCases ?? [])
             {
                 <div class="col-md-6 col-xl-4">
                     <div class="card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                             <span class="fw-semibold">Carry Case</span>
-                            <span class="badge bg-secondary">Slot @(cc.AnchorIndex + 1)</span>
                         </div>
                         <div class="card-body d-flex flex-column">
-                            @if (cc.RatName is null)
+                            @if (cc.RatId is null)
                             {
                                 <span class="text-muted small">Empty</span>
                             }
                             else
                             {
-                                <p class="mb-2 small"><span class="text-muted">Rat</span> <strong class="ms-1">@cc.RatName</strong></p>
-                                @if (activePanelId == cc.Id)
+                                var ratName = ratNames.TryGetValue(cc.RatId, out var n) ? n : cc.RatId;
+                                <p class="mb-2 small"><span class="text-muted">Rat</span> <strong class="ms-1">@ratName</strong></p>
+                                @if (activePanelId == cc.Id && panelIsCarryCase)
                                 {
                                     <div class="border rounded p-2 bg-light">
-                                        @if (panelHome is null)
-                                        {
-                                            <p class="text-muted small mb-0">Loading cages...</p>
-                                        }
-                                        else if (panelHome.Cages.Length == 0)
+                                        @if (home.Cages.Length == 0)
                                         {
                                             <p class="text-muted small mb-1">No cages available. <a href="/shop/cages">Buy one</a>.</p>
                                             <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -62,7 +69,7 @@ else
                                             <label class="form-label small">Place in cage</label>
                                             <select class="form-select form-select-sm mb-2" @bind="selectedCageId">
                                                 <option value="">— select cage —</option>
-                                                @foreach (var cage in panelHome.Cages)
+                                                @foreach (var cage in home.Cages)
                                                 {
                                                     <option value="@cage.Id">@cage.Name</option>
                                                 }
@@ -70,7 +77,7 @@ else
                                             <div class="d-flex gap-2">
                                                 <button class="btn btn-sm btn-primary"
                                                         disabled="@(busy || string.IsNullOrEmpty(selectedCageId))"
-                                                        @onclick="ConfirmNotYetWired">
+                                                        @onclick="ConfirmPlaceRatAsync">
                                                     Place
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -82,7 +89,7 @@ else
                                 {
                                     <button class="btn btn-sm btn-outline-primary mt-auto"
                                             disabled="@busy"
-                                            @onclick="() => OpenPanelAsync(cc.Id)">
+                                            @onclick="() => OpenCarryCasePanel(cc.Id)">
                                         Place in cage
                                     </button>
                                 }
@@ -96,24 +103,23 @@ else
 
     <!-- Storage Drawers -->
     <h4 class="mb-3">Storage Drawers</h4>
-    @if (StorageDrawers.Length == 0)
+    @if ((home.StorageDrawers ?? []).Length == 0)
     {
         <p class="text-muted small mb-4">No storage drawers. <a href="/shop/home-accessories">Buy one from the shop</a>.</p>
     }
     else
     {
         <div class="row g-3 mb-4">
-            @foreach (var drawer in StorageDrawers)
+            @foreach (var drawer in home.StorageDrawers ?? [])
             {
                 var used = drawer.Capacity - drawer.SlotsAvailable;
                 <div class="col-md-6 col-xl-4">
                     <div class="card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                             <span class="fw-semibold">Storage Drawers</span>
-                            <span class="badge bg-secondary">Slot @(drawer.AnchorIndex + 1)</span>
+                            <span class="badge bg-secondary">@used / @drawer.Capacity slots used</span>
                         </div>
                         <div class="card-body">
-                            <p class="small text-muted mb-3">@used / @drawer.Capacity slots used</p>
                             @if (drawer.Items.Length == 0)
                             {
                                 <p class="text-muted small">Empty</p>
@@ -124,23 +130,19 @@ else
                                 {
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <div>
-                                            <span class="small fw-semibold">@item.Name</span>
-                                            <span class="badge bg-light text-dark border ms-1">@KindLabel(item.Kind)</span>
+                                            <span class="small fw-semibold">@KindLabel(item.Kind)</span>
+                                            <span class="badge bg-light text-dark border ms-1 small">@item.TypeId</span>
                                         </div>
                                         <button class="btn btn-sm btn-outline-primary"
-                                                disabled="@(busy || activePanelId == item.Id)"
-                                                @onclick="() => OpenPanelAsync(item.Id)">
+                                                disabled="@(busy || (activePanelId == item.Id && !panelIsCarryCase))"
+                                                @onclick="() => OpenDrawerItemPanel(item.Id, item.Kind)">
                                             Install
                                         </button>
                                     </div>
-                                    @if (activePanelId == item.Id)
+                                    @if (activePanelId == item.Id && !panelIsCarryCase)
                                     {
                                         <div class="border rounded p-2 mb-2 bg-light">
-                                            @if (panelHome is null)
-                                            {
-                                                <p class="text-muted small mb-0">Loading cages...</p>
-                                            }
-                                            else if (panelHome.Cages.Length == 0)
+                                            @if (home.Cages.Length == 0)
                                             {
                                                 <p class="text-muted small mb-1">No cages available. <a href="/shop/cages">Buy one</a>.</p>
                                                 <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -150,7 +152,7 @@ else
                                                 <label class="form-label small">Install in cage</label>
                                                 <select class="form-select form-select-sm mb-2" @bind="selectedCageId">
                                                     <option value="">— select cage —</option>
-                                                    @foreach (var cage in panelHome.Cages)
+                                                    @foreach (var cage in home.Cages)
                                                     {
                                                         <option value="@cage.Id">@cage.Name</option>
                                                     }
@@ -158,7 +160,7 @@ else
                                                 <div class="d-flex gap-2">
                                                     <button class="btn btn-sm btn-primary"
                                                             disabled="@(busy || string.IsNullOrEmpty(selectedCageId))"
-                                                            @onclick="ConfirmNotYetWired">
+                                                            @onclick="ConfirmInstallItemAsync">
                                                         Install
                                                     </button>
                                                     <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -177,25 +179,24 @@ else
 
     <!-- Food Storage -->
     <h4 class="mb-3">Food Storage</h4>
-    @if (FoodStorageBins.Length == 0)
+    @if ((home.FoodStorageBins ?? []).Length == 0)
     {
         <p class="text-muted small mb-4">No food storage bins. <a href="/shop/food-bins">Buy one from the shop</a>.</p>
     }
     else
     {
         <div class="row g-3 mb-4">
-            @foreach (var bin in FoodStorageBins)
+            @foreach (var bin in home.FoodStorageBins ?? [])
             {
-                var pct = bin.CapacityRatDays > 0 ? (double)bin.StoredRatDays / bin.CapacityRatDays * 100 : 0;
+                var pct = bin.CapacityRatDays > 0 ? bin.StoredRatDays / bin.CapacityRatDays * 100 : 0;
                 var barClass = pct < 25 ? "bg-danger" : pct < 60 ? "bg-warning" : "bg-success";
                 <div class="col-md-6 col-xl-4">
                     <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                        <div class="card-header py-2">
                             <span class="fw-semibold">Food Storage Bin</span>
-                            <span class="badge bg-secondary">Slot @(bin.AnchorIndex + 1)</span>
                         </div>
                         <div class="card-body">
-                            <p class="small text-muted mb-1">@bin.StoredRatDays / @bin.CapacityRatDays rat-days stored</p>
+                            <p class="small text-muted mb-1">@bin.StoredRatDays.ToString("F0") / @bin.CapacityRatDays rat-days stored</p>
                             <div class="progress" style="height: 8px;">
                                 <div class="progress-bar @barClass" style="width: @(pct.ToString("F0"))%"></div>
                             </div>
@@ -208,53 +209,105 @@ else
 }
 
 @code {
-    // TODO: Remove stub records and data; replace with real HomeAccessories from GET /api/home when backend lands
-    record StubCarryCase(string Id, int AnchorIndex, string? RatName);
-    record StubDrawerItem(string Id, string Kind, string Name);
-    record StubStorageDrawer(string Id, int AnchorIndex, int Capacity, int SlotsAvailable, StubDrawerItem[] Items);
-    record StubFoodStorageBin(string Id, int AnchorIndex, int StoredRatDays, int CapacityRatDays);
-
-    static readonly StubCarryCase[] CarryCases = [new("cc-stub-1", 0, "Biscuit")];
-    static readonly StubStorageDrawer[] StorageDrawers = [new("sd-stub-1", 1, 20, 19, [new("item-stub-1", "FoodBowl", "Small Food Bowl")])];
-    static readonly StubFoodStorageBin[] FoodStorageBins = [new("bin-stub-1", 2, 45, 100)];
-
-    HomeResponse? panelHome;
+    HomeResponse? home;
+    Dictionary<string, string> ratNames = new();
     bool loaded;
     bool busy;
     string? actionError;
+    string? actionSuccess;
+
     string? activePanelId;
+    bool panelIsCarryCase;
+    string? activeItemKind;
     string? selectedCageId;
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        // TODO: Load real HomeAccessories from GET /api/home here; populate CarryCases, StorageDrawers, FoodStorageBins
+        await LoadAsync();
         loaded = true;
     }
 
-    async Task OpenPanelAsync(string id)
+    async Task LoadAsync()
     {
-        activePanelId = id;
+        var homeTask = Api.GetHomeAsync();
+        var ratsTask = Api.ListRatsAsync();
+        home = (await homeTask).Item1;
+        ratNames = (await ratsTask)?.ToDictionary(r => r.Id, r => r.Name) ?? new();
+    }
+
+    void OpenCarryCasePanel(string carryCaseId)
+    {
+        activePanelId = carryCaseId;
+        panelIsCarryCase = true;
+        activeItemKind = null;
         selectedCageId = null;
         actionError = null;
-        if (panelHome is null)
-        {
-            var (data, _) = await Api.GetHomeAsync();
-            panelHome = data;
-        }
+        actionSuccess = null;
+    }
+
+    void OpenDrawerItemPanel(string itemId, string kind)
+    {
+        activePanelId = itemId;
+        panelIsCarryCase = false;
+        activeItemKind = kind;
+        selectedCageId = null;
+        actionError = null;
+        actionSuccess = null;
     }
 
     void ClosePanel()
     {
         activePanelId = null;
         selectedCageId = null;
+        activeItemKind = null;
     }
 
-    void ConfirmNotYetWired()
+    async Task ConfirmPlaceRatAsync()
     {
-        // TODO: Replace with real API calls (place rat / install item) when backend HomeAccessories endpoint lands
-        actionError = "This action is not yet wired — waiting on the backend API.";
+        if (string.IsNullOrEmpty(selectedCageId) || activePanelId is null) return;
+        busy = true; actionError = null; actionSuccess = null;
+        var (success, err) = await Api.PlaceRatFromCarryCaseAsync(activePanelId, selectedCageId);
         ClosePanel();
+        if (success)
+        {
+            actionSuccess = "Rat placed in cage.";
+            await LoadAsync();
+        }
+        else
+        {
+            actionError = err ?? "Failed to place rat.";
+        }
+        busy = false;
+    }
+
+    async Task ConfirmInstallItemAsync()
+    {
+        if (string.IsNullOrEmpty(selectedCageId) || activePanelId is null || activeItemKind is null) return;
+        busy = true; actionError = null; actionSuccess = null;
+
+        bool success;
+        string? err;
+        if (activeItemKind == "FoodBowl")
+            (success, err) = await Api.InstallBowlFromDrawerAsync(selectedCageId, activePanelId);
+        else if (activeItemKind == "WaterBottle")
+            (success, err) = await Api.InstallBottleFromDrawerAsync(selectedCageId, activePanelId);
+        else if (activeItemKind == "Accessory")
+            (success, err) = await Api.InstallAccessoryFromDrawerAsync(selectedCageId, activePanelId);
+        else
+            (success, err) = (false, "Unknown item type.");
+
+        ClosePanel();
+        if (success)
+        {
+            actionSuccess = "Item installed in cage.";
+            await LoadAsync();
+        }
+        else
+        {
+            actionError = err ?? "Failed to install item.";
+        }
+        busy = false;
     }
 
     static string KindLabel(string kind) => kind switch

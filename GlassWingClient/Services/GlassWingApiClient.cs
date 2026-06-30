@@ -151,6 +151,38 @@ public class GlassWingApiClient(HttpClient http)
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<(bool Success, string? Error)> PlaceRatFromCarryCaseAsync(string carryCaseId, string cageId)
+    {
+        var resp = await http.PostAsync($"/api/home/carry-cases/{carryCaseId}/place/{cageId}", null);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> InstallBowlFromDrawerAsync(string cageId, string itemId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bowls", new { itemId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> InstallBottleFromDrawerAsync(string cageId, string itemId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bottles", new { itemId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> InstallAccessoryFromDrawerAsync(string cageId, string itemId)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/accessories", new { itemId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     // --- Game ---
 
     public async Task<GameSettingsResponse?> GetGameSettingsAsync()
