@@ -103,9 +103,11 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> RefillFoodAsync(string cageId)
+    public async Task<bool> RefillFoodAsync(string cageId, string? foodTypeId = null)
     {
-        var resp = await http.PostAsync($"/api/home/cages/{cageId}/food", null);
+        var url = $"/api/home/cages/{cageId}/food";
+        if (foodTypeId is not null) url += $"?foodTypeId={Uri.EscapeDataString(foodTypeId)}";
+        var resp = await http.PostAsync(url, null);
         return resp.IsSuccessStatusCode;
     }
 
