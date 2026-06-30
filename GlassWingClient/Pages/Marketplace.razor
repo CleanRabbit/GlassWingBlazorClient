@@ -1,0 +1,284 @@
+@page "/marketplace"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+
+<PageTitle>Marketplace — GlassWing</PageTitle>
+<h1 class="mb-4">Marketplace</h1>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else
+{
+    @if (freeCarryCases == 0)
+    {
+        <div class="alert alert-warning mb-4">
+            You need a free carry case to buy a rat. <a href="/shop/carry-cases" class="alert-link">Buy one from the shop.</a>
+        </div>
+    }
+
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "browse" ? "active" : "")" @onclick='() => activeTab = "browse"'>
+                Browse @(listings.Length > 0 ? $"({listings.Length})" : "")
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "mine" ? "active" : "")" @onclick='() => activeTab = "mine"'>
+                My Listings @(MyListings.Length > 0 ? $"({MyListings.Length})" : "")
+            </button>
+        </li>
+    </ul>
+
+    @if (activeTab == "browse")
+    {
+        @if (listings.Length == 0)
+        {
+            <p class="text-muted">No rats listed for sale right now.</p>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var listing in listings)
+                {
+                    var isOwn = listing.SellerId == playerId;
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 @(isOwn ? "border-primary" : "")">
+                            <div class="card-body d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <h6 class="card-title mb-0">@listing.RatName</h6>
+                                    <span class="fw-bold text-success ms-2 text-nowrap">@listing.Price.ToString("N0") cr</span>
+                                </div>
+                                <p class="small text-muted mb-2">
+                                    @(isOwn ? "Your listing" : $"@{listing.SellerUsername}") · Age @listing.AgeMonths mo
+                                </p>
+                                @if (listing.Stats is { } stats)
+                                {
+                                    <div class="d-flex gap-3 small text-muted mb-2">
+                                        <span>Sp @FormatScore(stats.Sprint)</span>
+                                        <span>Ag @FormatScore(stats.Agility)</span>
+                                        <span>En @FormatScore(stats.Endurance)</span>
+                                    </div>
+                                }
+                                @if (listing.Appearance is { } coat)
+                                {
+                                    <p class="small text-muted mb-2 fst-italic">@CoatBadgeString(coat)</p>
+                                }
+                                <p class="small text-muted mb-3">Expires @listing.ExpiresAt.ToString("dd MMM yyyy")</p>
+                                <div class="mt-auto">
+                                    @if (isOwn)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => CancelAsync(listing.ListingId)"
+                                                disabled="@busyListings.Contains(listing.ListingId)">
+                                            Cancel Listing
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-primary"
+                                                @onclick="() => OpenBuyConfirm(listing)"
+                                                disabled="@(freeCarryCases == 0 || busyListings.Contains(listing.ListingId))">
+                                            Buy
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        @if (MyListings.Length == 0)
+        {
+            <p class="text-muted">You have no active listings. List a rat from its detail page.</p>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var listing in MyListings)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                        <div>
+                            <div class="fw-semibold">@listing.RatName</div>
+                            <div class="small text-muted">
+                                @listing.Price.ToString("N0") cr ·
+                                Age @listing.AgeMonths mo ·
+                                Listed @listing.CreatedAt.ToString("dd MMM") ·
+                                Expires @listing.ExpiresAt.ToString("dd MMM yyyy")
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger flex-shrink-0"
+                                @onclick="() => CancelAsync(listing.ListingId)"
+                                disabled="@busyListings.Contains(listing.ListingId)">
+                            Cancel
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@if (buyTarget is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Buy @buyTarget.RatName?</h5>
+                    <button type="button" class="btn-close" @onclick="CloseBuyModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1">Price: <strong>@buyTarget.Price.ToString("N0") cr</strong></p>
+                    <p class="text-muted small mb-0">The rat will be placed into a free carry case.</p>
+                    @if (buyError is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-0 mt-3">@buyError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseBuyModal" disabled="@buyBusy">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ConfirmBuyAsync" disabled="@buyBusy">
+                        @(buyBusy ? "Buying..." : "Confirm Purchase")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (toastMessage is not null)
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+        <div class="alert @(toastIsError ? "alert-danger" : "alert-success") alert-dismissible shadow">
+            @toastMessage
+            <button type="button" class="btn-close" @onclick="() => toastMessage = null"></button>
+        </div>
+    </div>
+}
+
+@code {
+    MarketplaceListingResponse[] listings = [];
+    string? playerId;
+    string activeTab = "browse";
+    int freeCarryCases;
+    bool loaded;
+    string? loadError;
+    string? toastMessage;
+    bool toastIsError;
+
+    MarketplaceListingResponse? buyTarget;
+    bool buyBusy;
+    string? buyError;
+
+    HashSet<string> busyListings = new();
+
+    MarketplaceListingResponse[] MyListings =>
+        playerId is null ? [] : listings.Where(l => l.SellerId == playerId).ToArray();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+        var homeTask    = Api.GetHomeAsync();
+        var profileTask = Api.GetPlayerProfileAsync();
+        var listTask    = Api.GetMarketplaceListingsAsync();
+        await Task.WhenAll(homeTask, profileTask, listTask);
+
+        var (home, _) = await homeTask;
+        var profile   = await profileTask;
+        var result    = await listTask;
+
+        playerId       = profile?.PlayerId;
+        freeCarryCases = home?.CarryCases?.Count(c => c.RatId is null) ?? 0;
+        if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+
+        if (result is not null)
+            listings = result;
+        else
+            loadError = "Failed to load marketplace listings.";
+
+        loaded = true;
+    }
+
+    void OpenBuyConfirm(MarketplaceListingResponse listing)
+    {
+        buyTarget = listing;
+        buyError  = null;
+    }
+
+    void CloseBuyModal()
+    {
+        buyTarget = null;
+        buyError  = null;
+    }
+
+    async Task ConfirmBuyAsync()
+    {
+        if (buyTarget is null) return;
+        buyBusy  = true;
+        buyError = null;
+        var target = buyTarget;
+        var (result, err) = await Api.BuyListingAsync(target.ListingId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            listings       = listings.Where(l => l.ListingId != target.ListingId).ToArray();
+            freeCarryCases = Math.Max(0, freeCarryCases - 1);
+            buyTarget      = null;
+            toastIsError   = false;
+            toastMessage   = $"{target.RatName} purchased! Check your carry cases on the home page.";
+        }
+        else
+        {
+            buyError = err ?? "Purchase failed.";
+        }
+        buyBusy = false;
+    }
+
+    async Task CancelAsync(string listingId)
+    {
+        busyListings.Add(listingId);
+        var (success, err) = await Api.CancelListingAsync(listingId);
+        if (success)
+        {
+            listings     = listings.Where(l => l.ListingId != listingId).ToArray();
+            toastIsError = false;
+            toastMessage = "Listing cancelled.";
+        }
+        else
+        {
+            toastIsError = true;
+            toastMessage = err ?? "Failed to cancel listing.";
+        }
+        busyListings.Remove(listingId);
+    }
+
+    static string FormatScore(double? score) => score?.ToString("F1") ?? "—";
+
+    static string CoatBadgeString(CoatPhenotype c)
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (c.BaseColor is not null) parts.Add(c.BaseColor);
+        if (c.Pattern is not null) parts.Add(c.Pattern);
+        if (c.Type is not null and not "Standard") parts.Add(c.Type);
+        if (c.EyeColor is not null and not "Black") parts.Add($"{c.EyeColor} eyes");
+        if (c.EarType is not null and not "Standard") parts.Add(c.EarType);
+        if (c.HasBlaze) parts.Add("Blaze");
+        if (c.IsRoan) parts.Add("Roan");
+        if (c.IsDownunder) parts.Add("Downunder");
+        if (c.Silvering is not null and not "None") parts.Add($"{c.Silvering} Silvering");
+        return parts.Count > 0 ? string.Join(" · ", parts) : "—";
+    }
+}

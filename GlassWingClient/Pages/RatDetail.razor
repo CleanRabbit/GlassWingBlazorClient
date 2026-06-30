@@ -2,6 +2,7 @@
 @inject GlassWingApiClient Api
 @inject AuthStateService Auth
 @inject NavigationManager Nav
+@inject PlayerStateService PlayerState
 
 <PageTitle>@(rat?.Name ?? "Rat") — GlassWing</PageTitle>
 
@@ -186,22 +187,72 @@ else
     {
         <div class="alert @(trainSuccess ? "alert-success" : "alert-warning") py-2">@trainMessage</div>
     }
+
+    @* Marketplace *@
+    @if (rat.HealthState?.Vitality == "Healthy")
+    {
+        <h5 class="mt-4">Marketplace</h5>
+        @if (!listingFormOpen)
+        {
+            <button class="btn btn-outline-secondary" @onclick="() => listingFormOpen = true">List on Marketplace</button>
+        }
+        else
+        {
+            <div class="card" style="max-width:400px">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Asking Price (cr)</label>
+                        <input type="number" class="form-control" @bind="listingPrice" min="1" />
+                    </div>
+                    @if (settings?.MarketplaceListingFee is { } fee || settings?.MarketplaceTransactionFeePercent is { } txPct)
+                    {
+                        <div class="mb-3 small text-muted">
+                            @if (settings.MarketplaceListingFee is { } f)
+                            {
+                                <div>Listing fee: @f.ToString("N0") cr (charged now)</div>
+                            }
+                            @if (settings.MarketplaceTransactionFeePercent is { } p)
+                            {
+                                <div>Transaction fee: @((p * 100).ToString("F0"))% deducted on sale</div>
+                            }
+                        </div>
+                    }
+                    @if (listingMessage is not null)
+                    {
+                        <div class="alert @(listingSuccess ? "alert-success" : "alert-danger") py-2">@listingMessage</div>
+                    }
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" @onclick="CreateListingAsync" disabled="@listingBusy">
+                            @(listingBusy ? "Listing..." : "List for Sale")
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="CancelListingForm">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
 }
 
 @code {
     [Parameter] public string Id { get; set; } = "";
 
     RatResponse? rat;
+    GameSettingsResponse? settings;
     bool renaming;
     string newName = "";
     bool training;
     string? trainMessage;
     bool trainSuccess;
+    bool listingFormOpen;
+    decimal listingPrice = 100;
+    bool listingBusy;
+    string? listingMessage;
+    bool listingSuccess;
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        await LoadRatAsync();
+        await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync());
     }
 
     async Task LoadRatAsync()
@@ -209,6 +260,8 @@ else
         rat = await Api.GetRatAsync(Id);
         newName = rat?.Name ?? "";
     }
+
+    async Task LoadSettingsAsync() => settings = await Api.GetGameSettingsAsync();
 
     void StartRename()
     {
@@ -241,6 +294,31 @@ else
             trainMessage = error ?? "Training failed.";
         }
         training = false;
+    }
+
+    void CancelListingForm()
+    {
+        listingFormOpen = false;
+        listingMessage  = null;
+    }
+
+    async Task CreateListingAsync()
+    {
+        if (listingPrice <= 0) { listingMessage = "Enter a valid price above 0."; listingSuccess = false; return; }
+        listingBusy    = true;
+        listingMessage = null;
+        var (result, err) = await Api.CreateListingAsync(Id, listingPrice);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            Nav.NavigateTo("/marketplace");
+        }
+        else
+        {
+            listingSuccess = false;
+            listingMessage = err ?? "Failed to create listing.";
+        }
+        listingBusy = false;
     }
 
     static string FormatStat(StatFitness? stat) =>

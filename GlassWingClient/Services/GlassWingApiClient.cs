@@ -362,6 +362,42 @@ public class GlassWingApiClient(HttpClient http)
         return resp.IsSuccessStatusCode;
     }
 
+    // --- Marketplace ---
+
+    public async Task<MarketplaceListingResponse[]?> GetMarketplaceListingsAsync()
+    {
+        var resp = await http.GetAsync("/api/marketplace/listings");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<MarketplaceListingResponse[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(CreateListingResponse? Result, string? Error)> CreateListingAsync(string ratId, decimal price)
+    {
+        var resp = await http.PostAsJsonAsync("/api/marketplace/listings", new { ratId, price }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CreateListingResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(BuyListingResponse? Result, string? Error)> BuyListingAsync(string listingId)
+    {
+        var resp = await http.PostAsync($"/api/marketplace/listings/{listingId}/buy", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<BuyListingResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> CancelListingAsync(string listingId)
+    {
+        var resp = await http.DeleteAsync($"/api/marketplace/listings/{listingId}");
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     // --- Player ---
 
     public async Task<PlayerProfileResponse?> GetPlayerProfileAsync()

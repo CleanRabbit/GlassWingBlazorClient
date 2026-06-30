@@ -106,7 +106,9 @@ public record GameSettingsResponse(
     double FoodConsumptionScale,
     double WaterConsumptionScale,
     double TrainingCooldownScale,
-    double IllnessProgressionScale);
+    double IllnessProgressionScale,
+    decimal? MarketplaceListingFee = null,
+    double? MarketplaceTransactionFeePercent = null);
 
 // --- Home extras ---
 
@@ -162,6 +164,25 @@ public record FoodPurchaseResponse(string BinId, string FoodTypeId, int StoredRa
 public record InventoryResponse(InventoryItem[] Items);
 public record InventoryItem(string Id, string ItemType, string TypeId, string Name, string? Description, int Quantity);
 public record PlaceInventoryItemResponse(bool Success, string? Message);
+
+// --- Marketplace ---
+
+public record MarketplaceListingResponse(
+    string ListingId,
+    string RatId,
+    string RatName,
+    int AgeMonths,
+    string SellerId,
+    string SellerUsername,
+    decimal Price,
+    DateTime CreatedAt,
+    DateTime ExpiresAt,
+    MarketplaceListingStats? Stats,
+    CoatPhenotype? Appearance);
+
+public record MarketplaceListingStats(double? Sprint, double? Agility, double? Endurance);
+public record CreateListingResponse(string ListingId, DateTime ExpiresAt, decimal NewBalance);
+public record BuyListingResponse(string CarryCaseId, decimal NewBalance);
 
 // --- Player ---
 
