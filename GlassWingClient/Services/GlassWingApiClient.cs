@@ -371,4 +371,15 @@ public class GlassWingApiClient(HttpClient http)
             ? await resp.Content.ReadFromJsonAsync<PlayerProfileResponse>(JsonOpts)
             : null;
     }
+
+    public async Task<(PlayerProfileResponse? Result, string? Error)> UpdatePlayerProfileAsync(
+        string? country, string? state, bool weatherEnabled)
+    {
+        var resp = await http.PatchAsJsonAsync("/api/players/me",
+            new { country, state, weatherEnabled }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<PlayerProfileResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
 }

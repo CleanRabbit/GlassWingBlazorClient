@@ -165,4 +165,11 @@ public record PlaceInventoryItemResponse(bool Success, string? Message);
 
 // --- Player ---
 
-public record PlayerProfileResponse(string PlayerId, string Username, decimal Currency);
+public record PlayerProfileResponse(
+    string PlayerId,
+    string Username,
+    decimal Currency,
+    string? HomeName = null,
+    string? Country = null,
+    string? State = null,
+    bool WeatherEnabled = false);

@@ -1,0 +1,122 @@
+@page "/profile"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+
+<PageTitle>Profile — GlassWing</PageTitle>
+<h1 class="mb-4">Profile</h1>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (profile is null)
+{
+    <div class="alert alert-danger">Failed to load profile.</div>
+}
+else
+{
+    @if (success is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @success
+            <button type="button" class="btn-close" @onclick="() => success = null"></button>
+        </div>
+    }
+    @if (error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @error
+            <button type="button" class="btn-close" @onclick="() => error = null"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Account</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal">Username</dt>
+                        <dd class="col-sm-8">@profile.Username</dd>
+                        <dt class="col-sm-4 text-muted fw-normal">Balance</dt>
+                        <dd class="col-sm-8">@profile.Currency.ToString("N0") cr</dd>
+                        @if (profile.HomeName is not null)
+                        {
+                            <dt class="col-sm-4 text-muted fw-normal">Home</dt>
+                            <dd class="col-sm-8">@profile.HomeName</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Settings</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Country</label>
+                        <input class="form-control" @bind="country" placeholder="e.g. United Kingdom" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">State / Region</label>
+                        <input class="form-control" @bind="state" placeholder="e.g. England" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="weatherEnabled" @bind="weatherEnabled" />
+                        <label class="form-check-label" for="weatherEnabled">Enable weather effects</label>
+                        <div class="form-text">Uses your location to apply local weather conditions to rat health and training.</div>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@busy">
+                        @(busy ? "Saving..." : "Save")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    PlayerProfileResponse? profile;
+    bool loaded;
+    bool busy;
+    string? success;
+    string? error;
+
+    string? country;
+    string? state;
+    bool weatherEnabled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        profile = await Api.GetPlayerProfileAsync();
+        if (profile is not null)
+        {
+            PlayerState.SetCurrency(profile.Currency);
+            country        = profile.Country;
+            state          = profile.State;
+            weatherEnabled = profile.WeatherEnabled;
+        }
+        loaded = true;
+    }
+
+    async Task SaveAsync()
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.UpdatePlayerProfileAsync(country, state, weatherEnabled);
+        if (result is not null)
+        {
+            profile = result;
+            PlayerState.SetCurrency(result.Currency);
+            success = "Profile saved.";
+        }
+        else
+        {
+            error = err ?? "Failed to save profile.";
+        }
+        busy = false;
+    }
+}
