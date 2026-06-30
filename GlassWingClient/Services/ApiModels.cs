@@ -113,7 +113,7 @@ public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId);
 public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items);
 public record HomeStorageDrawerItem(string Id, string TypeId, string Kind);
 public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays);
-public record AutoFillNotification(string CageId, string CageName, string Type);
+public record AutoFillNotification(string CageId, string CageName, bool FoodRefilled, bool WaterRefilled);
 
 // --- Events ---
 

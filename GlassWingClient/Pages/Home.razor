@@ -43,11 +43,12 @@ else
             var fill = home.AutoFills[idx];
             if (!dismissedAutoFills.Contains(idx))
             {
-                var label = fill.Type?.ToLowerInvariant() switch
+                var label = (fill.FoodRefilled, fill.WaterRefilled) switch
                 {
-                    "food"  => "food",
-                    "water" => "water",
-                    _       => fill.Type ?? "supplies"
+                    (true, true)  => "food and water",
+                    (true, false) => "food",
+                    (false, true) => "water",
+                    _             => "supplies"
                 };
                 <div class="alert alert-info alert-dismissible mb-2 py-2" role="alert">
                     Auto-filled @label in <strong>@fill.CageName</strong>.
