@@ -336,6 +336,33 @@ else
             </div>
         }
     </div>
+
+    <h4 class="mt-4 mb-3">Food Storage</h4>
+    @if ((home!.FoodStorageBins ?? []).Length == 0)
+    {
+        <p class="text-muted small">No food storage bins. <a href="/shop/food-bins">Buy one from the shop</a>.</p>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var bin in home!.FoodStorageBins ?? [])
+            {
+                var pct = bin.CapacityRatDays > 0 ? bin.StoredRatDays / bin.CapacityRatDays * 100 : 0;
+                var binBarClass = pct < 25 ? "bg-danger" : pct < 60 ? "bg-warning" : "bg-success";
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Food Storage Bin</h6>
+                            <p class="small text-muted mb-1">@bin.StoredRatDays.ToString("F0") / @bin.CapacityRatDays rat-days stored</p>
+                            <div class="progress" style="height:8px">
+                                <div class="progress-bar @binBarClass" style="width:@(pct.ToString("F0"))%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
