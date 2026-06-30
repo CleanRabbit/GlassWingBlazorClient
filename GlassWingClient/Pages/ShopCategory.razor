@@ -166,10 +166,81 @@ else
                 </div>
             }
         }
+        else if (Category == "carry-cases")
+        {
+            @foreach (var item in catalogue.CarryCases ?? [])
+            {
+                var occupied = GetOccupiedSlots();
+                var totalSlots = home?.TotalAccessorySlots ?? 0;
+                var hasSpace = totalSlots > occupied.Count;
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small text-muted mb-2">Holds 1 rat for transport</p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                @if (anchorPanelItemId != item.Id)
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenAnchorPanel(item.Id, item.Name, item.Price)"
+                                            disabled="@(busy || (home is not null && !hasSpace))"
+                                            title="@(home is not null && !hasSpace ? "No free home slots" : null)">
+                                        Buy
+                                    </button>
+                                }
+                            </div>
+                            @if (anchorPanelItemId == item.Id)
+                            {
+                                @AnchorPanel(occupied, totalSlots)
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (Category == "storage-drawers")
+        {
+            @foreach (var item in catalogue.StorageDrawers ?? [])
+            {
+                var occupied = GetOccupiedSlots();
+                var totalSlots = home?.TotalAccessorySlots ?? 0;
+                var hasSpace = totalSlots > occupied.Count;
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="small mb-2">
+                                <span class="text-muted">Slots</span> @item.SlotsPerUnit
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.Price cr</strong>
+                                @if (anchorPanelItemId != item.Id)
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenAnchorPanel(item.Id, item.Name, item.Price)"
+                                            disabled="@(busy || (home is not null && !hasSpace))"
+                                            title="@(home is not null && !hasSpace ? "No free home slots" : null)">
+                                        Buy
+                                    </button>
+                                }
+                            </div>
+                            @if (anchorPanelItemId == item.Id)
+                            {
+                                @AnchorPanel(occupied, totalSlots)
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
         else if (Category == "food-bins")
         {
             @foreach (var item in catalogue.FoodStorageBins)
             {
+                var occupied = GetOccupiedSlots();
+                var totalSlots = home?.TotalAccessorySlots ?? 0;
+                var hasSpace = totalSlots > occupied.Count;
                 <div class="col-md-6 col-xl-4">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
@@ -179,12 +250,20 @@ else
                             </p>
                             <div class="d-flex justify-content-between align-items-center mt-auto">
                                 <strong>@item.Price cr</strong>
-                                <button class="btn btn-sm btn-primary"
-                                        @onclick="() => BuyFoodBinAsync(item.Name)"
-                                        disabled="@busy">
-                                    Buy
-                                </button>
+                                @if (anchorPanelItemId != item.Id)
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenAnchorPanel(item.Id, item.Name, item.Price)"
+                                            disabled="@(busy || (home is not null && !hasSpace))"
+                                            title="@(home is not null && !hasSpace ? "No free home slots" : null)">
+                                        Buy
+                                    </button>
+                                }
                             </div>
+                            @if (anchorPanelItemId == item.Id)
+                            {
+                                @AnchorPanel(occupied, totalSlots)
+                            }
                         </div>
                     </div>
                 </div>
@@ -307,25 +386,42 @@ else
     bool busy;
     string? success;
     string? error;
+
+    // Food buy panel
     string? foodBuyPanelId;
     string? selectedBinId;
     int foodRatDays = 1;
 
+    // Anchor selection panel (carry cases, storage drawers, food bins)
+    string? anchorPanelItemId;
+    string? anchorPanelName;
+    int anchorPanelPrice;
+    string? anchorPanelCategory;
+    int? selectedAnchorIndex;
+
     string CategoryTitle => Category switch
     {
-        "cages"       => "Cages",
-        "accessories" => "Accessories",
-        "bowls"       => "Food Bowls",
-        "bottles"     => "Water Bottles",
-        "food-bins"   => "Food Storage",
-        "food"        => "Food",
-        _             => "Shop"
+        "cages"            => "Cages",
+        "accessories"      => "Accessories",
+        "bowls"            => "Food Bowls",
+        "bottles"          => "Water Bottles",
+        "carry-cases"      => "Carry Cases",
+        "storage-drawers"  => "Storage Drawers",
+        "food-bins"        => "Food Storage",
+        "food"             => "Food",
+        _                  => "Shop"
     };
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        catalogue = await Api.GetShopCatalogueAsync();
+        var catalogueTask = Api.GetShopCatalogueAsync();
+        Task<(HomeResponse?, string?)>? homeTask = null;
+        if (Category is "carry-cases" or "storage-drawers" or "food-bins" or "food")
+            homeTask = Api.GetHomeAsync();
+        catalogue = await catalogueTask;
+        if (homeTask is not null)
+            home = (await homeTask).Item1;
         loaded = true;
     }
 
@@ -381,16 +477,71 @@ else
         busy = false;
     }
 
-    async Task BuyFoodBinAsync(string name)
+    string AnchorCategory => Category switch
     {
+        "carry-cases"     => "carry-case",
+        "storage-drawers" => "storage-drawers",
+        _                 => "food-bin"
+    };
+
+    void OpenAnchorPanel(string itemId, string name, int price)
+    {
+        anchorPanelItemId = itemId;
+        anchorPanelName = name;
+        anchorPanelPrice = price;
+        anchorPanelCategory = AnchorCategory;
+        selectedAnchorIndex = null;
+        error = null;
+        success = null;
+    }
+
+    void CloseAnchorPanel()
+    {
+        anchorPanelItemId = null;
+        selectedAnchorIndex = null;
+    }
+
+    HashSet<int> GetOccupiedSlots()
+    {
+        var set = new HashSet<int>();
+        if (home is null) return set;
+        foreach (var cc in home.CarryCases ?? []) set.Add(cc.AnchorIndex);
+        foreach (var sd in home.StorageDrawers ?? []) set.Add(sd.AnchorIndex);
+        foreach (var fb in home.FoodStorageBins ?? []) set.Add(fb.AnchorIndex);
+        return set;
+    }
+
+    async Task ConfirmHomeAccessoryBuyAsync()
+    {
+        if (selectedAnchorIndex is null) return;
         busy = true; error = null; success = null;
-        var (result, err) = await Api.BuyFoodStorageBinAsync();
-        if (result is not null)
+        var anchorIndex = selectedAnchorIndex.Value;
+        decimal newBalance;
+
+        if (anchorPanelCategory == "carry-case")
         {
-            PlayerState.SetCurrency(result.NewBalance);
-            success = $"{name} added to your home. New balance: {result.NewBalance:N0} cr";
+            var (result, err) = await Api.BuyCarryCaseAsync(anchorIndex);
+            if (result is null) { error = err; busy = false; return; }
+            newBalance = result.NewBalance;
         }
-        else error = err;
+        else if (anchorPanelCategory == "storage-drawers")
+        {
+            var (result, err) = await Api.BuyStorageDrawersAsync(anchorIndex);
+            if (result is null) { error = err; busy = false; return; }
+            newBalance = result.NewBalance;
+        }
+        else
+        {
+            var (result, err) = await Api.BuyFoodStorageBinAsync(anchorIndex);
+            if (result is null) { error = err; busy = false; return; }
+            newBalance = result.NewBalance;
+        }
+
+        PlayerState.SetCurrency(newBalance);
+        success = $"{anchorPanelName} placed in Slot {anchorIndex + 1}. New balance: {newBalance:N0} cr";
+        CloseAnchorPanel();
+        var (homeData, _) = await Api.GetHomeAsync();
+        if (homeData is not null) home = homeData;
         busy = false;
     }
 
@@ -420,6 +571,40 @@ else
         else error = err;
         busy = false;
     }
+
+    RenderFragment AnchorPanel(HashSet<int> occupied, int totalSlots) => __builder =>
+    {
+        <div class="border rounded p-2 mt-2 bg-light">
+            @if (selectedAnchorIndex is null)
+            {
+                <p class="small fw-semibold mb-2">Select a home slot</p>
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    @for (int si = 0; si < totalSlots; si++)
+                    {
+                        var slotIdx = si;
+                        var isOccupied = occupied.Contains(slotIdx);
+                        <button class="btn btn-sm @(isOccupied ? "btn-outline-secondary" : "btn-outline-primary")"
+                                disabled="@(isOccupied || busy)"
+                                @onclick="() => selectedAnchorIndex = slotIdx">
+                            @(slotIdx + 1)
+                        </button>
+                    }
+                </div>
+                <button class="btn btn-sm btn-link text-muted p-0" @onclick="CloseAnchorPanel">Cancel</button>
+            }
+            else
+            {
+                <p class="small fw-semibold mb-1">Confirm purchase</p>
+                <p class="small text-muted mb-2">@anchorPanelName · Slot @(selectedAnchorIndex + 1) · @anchorPanelPrice cr</p>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" disabled="@busy" @onclick="ConfirmHomeAccessoryBuyAsync">
+                        @(busy ? "..." : "Confirm")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => selectedAnchorIndex = null">Back</button>
+                </div>
+            }
+        </div>
+    };
 
     static string TierBadge(string? tier) => tier switch
     {

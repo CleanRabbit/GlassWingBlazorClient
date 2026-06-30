@@ -301,11 +301,29 @@ public class GlassWingApiClient(HttpClient http)
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(FoodStorageBinPurchaseResponse? Result, string? Error)> BuyFoodStorageBinAsync()
+    public async Task<(FoodStorageBinPurchaseResponse? Result, string? Error)> BuyFoodStorageBinAsync(int anchorIndex)
     {
-        var resp = await http.PostAsJsonAsync("/api/shop/buy/food-bin", new { }, JsonOpts);
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/food-storage-bin", new { anchorIndex }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (await resp.Content.ReadFromJsonAsync<FoodStorageBinPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(CarryCasePurchaseResponse? Result, string? Error)> BuyCarryCaseAsync(int anchorIndex)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/carry-case", new { anchorIndex }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CarryCasePurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(StorageDrawersPurchaseResponse? Result, string? Error)> BuyStorageDrawersAsync(int anchorIndex)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/storage-drawers", new { anchorIndex }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<StorageDrawersPurchaseResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }

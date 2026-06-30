@@ -188,15 +188,21 @@ else
 
                         @* ── Contents ───────────────────────────────── *@
                         @{
+                            var drawerItems    = (home!.StorageDrawers ?? []).SelectMany(d => d.Items).ToArray();
+                            var availBowls     = drawerItems.Where(i => i.Kind == "FoodBowl").ToArray();
+                            var availBottles   = drawerItems.Where(i => i.Kind == "WaterBottle").ToArray();
+                            var availAcc       = drawerItems.Where(i => i.Kind == "Accessory").ToArray();
                             var hasBowls       = cage.FoodBowls    is { Length: > 0 };
                             var hasBottles     = cage.WaterBottles  is { Length: > 0 };
                             var hasAccessories = cage.Accessories   is { Length: > 0 };
-                            var canAddBowl     = (cage.Type?.MaxFoodBowlSlots ?? 0) > (cage.FoodBowls?.Length ?? 0);
-                            var canAddBottle   = (cage.Type?.MaxWaterBottleSlots ?? 0) > (cage.WaterBottles?.Length ?? 0);
+                            var canAddBowl     = (cage.Type?.MaxFoodBowlSlots ?? 0) > (cage.FoodBowls?.Length ?? 0) && availBowls.Length > 0;
+                            var canAddBottle   = (cage.Type?.MaxWaterBottleSlots ?? 0) > (cage.WaterBottles?.Length ?? 0) && availBottles.Length > 0;
+                            var canAddAccessory = availAcc.Length > 0;
                             var bowlVal        = bowlPickerValues.GetValueOrDefault(cage.Id, string.Empty);
                             var bottleVal      = bottlePickerValues.GetValueOrDefault(cage.Id, string.Empty);
+                            var accessoryVal   = accessoryPickerValues.GetValueOrDefault(cage.Id, string.Empty);
                         }
-                        @if (hasBowls || hasBottles || hasAccessories || canAddBowl || canAddBottle)
+                        @if (hasBowls || hasBottles || hasAccessories || canAddBowl || canAddBottle || canAddAccessory)
                         {
                             <hr class="my-2" />
                             <div class="text-muted small mb-1">Contents</div>
@@ -221,13 +227,13 @@ else
                                         <li class="text-danger small">@bowlErr</li>
                                     }
                                     <li class="d-flex align-items-center gap-1 mt-1">
-                                        <select class="form-select form-select-sm" style="max-width:160px"
+                                        <select class="form-select form-select-sm" style="max-width:175px"
                                                 value="@bowlVal"
                                                 @onchange="e => bowlPickerValues[cage.Id] = e.Value?.ToString() ?? string.Empty">
                                             <option value="">+ Add bowl...</option>
-                                            @foreach (var bt in BowlTypes)
+                                            @foreach (var item in availBowls)
                                             {
-                                                <option value="@bt.Id">@bt.Name (@bt.CapacityRatDays rd)</option>
+                                                <option value="@item.Id">@GetItemName(item.TypeId, item.Kind)</option>
                                             }
                                         </select>
                                         <button class="btn btn-outline-secondary btn-sm"
@@ -255,13 +261,13 @@ else
                                         <li class="text-danger small">@bottleErr</li>
                                     }
                                     <li class="d-flex align-items-center gap-1 mt-1">
-                                        <select class="form-select form-select-sm" style="max-width:160px"
+                                        <select class="form-select form-select-sm" style="max-width:175px"
                                                 value="@bottleVal"
                                                 @onchange="e => bottlePickerValues[cage.Id] = e.Value?.ToString() ?? string.Empty">
                                             <option value="">+ Add bottle...</option>
-                                            @foreach (var bt in BottleTypes)
+                                            @foreach (var item in availBottles)
                                             {
-                                                <option value="@bt.Id">@bt.Name (@bt.CapacityRatDays rd)</option>
+                                                <option value="@item.Id">@GetItemName(item.TypeId, item.Kind)</option>
                                             }
                                         </select>
                                         <button class="btn btn-outline-secondary btn-sm"
@@ -269,20 +275,38 @@ else
                                                 @onclick="() => AddBottleAsync(cage.Id)">Add</button>
                                     </li>
                                 }
-                                @if (hasAccessories)
+                                @foreach (var acc in cage.Accessories ?? [])
                                 {
-                                    @foreach (var acc in cage.Accessories!)
-                                    {
-                                        <li>
+                                    <li class="d-flex justify-content-between align-items-center mb-1">
+                                        <span>
                                             @acc.Name
                                             @if (!string.IsNullOrWhiteSpace(acc.Description))
                                             {
-                                                <div class="text-muted" style="padding-left:0.75rem">
-                                                    @acc.Description
-                                                </div>
+                                                <span class="text-muted ms-1 small">— @acc.Description</span>
                                             }
-                                        </li>
+                                        </span>
+                                    </li>
+                                }
+                                @if (canAddAccessory)
+                                {
+                                    @if (accessoryErrors.TryGetValue(cage.Id, out var accErr) && accErr is not null)
+                                    {
+                                        <li class="text-danger small">@accErr</li>
                                     }
+                                    <li class="d-flex align-items-center gap-1 mt-1">
+                                        <select class="form-select form-select-sm" style="max-width:175px"
+                                                value="@accessoryVal"
+                                                @onchange="e => accessoryPickerValues[cage.Id] = e.Value?.ToString() ?? string.Empty">
+                                            <option value="">+ Add accessory...</option>
+                                            @foreach (var item in availAcc)
+                                            {
+                                                <option value="@item.Id">@GetItemName(item.TypeId, item.Kind)</option>
+                                            }
+                                        </select>
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                disabled="@(accessoriesBusy.Contains(cage.Id) || string.IsNullOrEmpty(accessoryVal))"
+                                                @onclick="() => AddAccessoryAsync(cage.Id)">Add</button>
+                                    </li>
                                 }
                             </ul>
                         }
@@ -296,9 +320,9 @@ else
                                 {
                                     <select class="form-select form-select-sm d-inline-block" style="max-width:165px" @bind="regimePickerValue">
                                         <option value="">— none —</option>
-                                        @foreach (var r in TrainingRegimes)
+                                        @foreach (var (rId, rName) in TrainingRegimes)
                                         {
-                                            <option value="@r.Id">@r.Name</option>
+                                            <option value="@rId">@rName</option>
                                         }
                                     </select>
                                     <button class="btn btn-primary btn-sm" disabled="@regimeBusy"
@@ -366,34 +390,17 @@ else
 }
 
 @code {
-    record TrainingRegimeDef(string Id, string Name);
-    record BowlTypeDef(string Id, string Name, int CapacityRatDays);
-    record BottleTypeDef(string Id, string Name, int CapacityRatDays);
-
-    static readonly TrainingRegimeDef[] TrainingRegimes =
+    static readonly (string Id, string Name)[] TrainingRegimes =
     [
-        new("track-runs",         "Track Runs"),
-        new("furniture-scramble", "Furniture Scramble"),
-        new("dash-drills",        "Dash Drills"),
-        new("tunnel-rush",        "Tunnel Rush"),
-        new("endurance-circuit",  "Endurance Circuit"),
-    ];
-
-    static readonly BowlTypeDef[] BowlTypes =
-    [
-        new("food-bowl-small",  "Small",  1),
-        new("food-bowl-medium", "Medium", 3),
-        new("food-bowl-large",  "Large",  5),
-    ];
-
-    static readonly BottleTypeDef[] BottleTypes =
-    [
-        new("water-bottle-small",  "Small",  1),
-        new("water-bottle-medium", "Medium", 3),
-        new("water-bottle-large",  "Large",  5),
+        ("track-runs",         "Track Runs"),
+        ("furniture-scramble", "Furniture Scramble"),
+        ("dash-drills",        "Dash Drills"),
+        ("tunnel-rush",        "Tunnel Rush"),
+        ("endurance-circuit",  "Endurance Circuit"),
     ];
 
     HomeResponse? home;
+    ShopCatalogueResponse? catalogue;
     GameSettingsResponse? gameSettings;
     bool loaded;
     string? loadError;
@@ -410,11 +417,24 @@ else
     readonly HashSet<string> busyCages = [];
     readonly Dictionary<string, string> bowlPickerValues = [];
     readonly Dictionary<string, string> bottlePickerValues = [];
+    readonly Dictionary<string, string> accessoryPickerValues = [];
     readonly HashSet<string> bowlsBusy = [];
     readonly HashSet<string> bottlesBusy = [];
+    readonly HashSet<string> accessoriesBusy = [];
     readonly Dictionary<string, string?> bowlErrors = [];
     readonly Dictionary<string, string?> bottleErrors = [];
+    readonly Dictionary<string, string?> accessoryErrors = [];
     readonly HashSet<int> dismissedAutoFills = [];
+
+    string GetItemName(string typeId, string kind) => kind switch
+    {
+        "FoodBowl"    => catalogue?.FoodBowls.FirstOrDefault(b => b.Id == typeId) is { } b
+                             ? $"{b.Name} ({b.CapacityRatDays} rd)" : typeId,
+        "WaterBottle" => catalogue?.WaterBottles.FirstOrDefault(b => b.Id == typeId) is { } wb
+                             ? $"{wb.Name} ({wb.CapacityRatDays} rd)" : typeId,
+        "Accessory"   => catalogue?.Accessories.FirstOrDefault(a => a.Id == typeId)?.Name ?? typeId,
+        _             => typeId
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -426,9 +446,11 @@ else
     {
         try
         {
-            var homeTask     = Api.GetHomeAsync();
-            var settingsTask = Api.GetGameSettingsAsync();
+            var homeTask      = Api.GetHomeAsync();
+            var settingsTask  = Api.GetGameSettingsAsync();
+            var catalogueTask = Api.GetShopCatalogueAsync();
             var (homeResult, settings) = (await homeTask, await settingsTask);
+            catalogue = await catalogueTask;
             var (data, error) = homeResult;
             home         = data;
             loadError    = error;
@@ -535,11 +557,11 @@ else
 
     async Task AddBowlAsync(string cageId)
     {
-        var typeId = bowlPickerValues.GetValueOrDefault(cageId, string.Empty);
-        if (string.IsNullOrEmpty(typeId)) return;
+        var itemId = bowlPickerValues.GetValueOrDefault(cageId, string.Empty);
+        if (string.IsNullOrEmpty(itemId)) return;
         bowlsBusy.Add(cageId);
         bowlErrors.Remove(cageId);
-        var (success, error) = await Api.InstallBowlAsync(cageId, typeId);
+        var (success, error) = await Api.InstallBowlFromDrawerAsync(cageId, itemId);
         if (success)
         {
             bowlPickerValues.Remove(cageId);
@@ -566,11 +588,11 @@ else
 
     async Task AddBottleAsync(string cageId)
     {
-        var typeId = bottlePickerValues.GetValueOrDefault(cageId, string.Empty);
-        if (string.IsNullOrEmpty(typeId)) return;
+        var itemId = bottlePickerValues.GetValueOrDefault(cageId, string.Empty);
+        if (string.IsNullOrEmpty(itemId)) return;
         bottlesBusy.Add(cageId);
         bottleErrors.Remove(cageId);
-        var (success, error) = await Api.InstallBottleAsync(cageId, typeId);
+        var (success, error) = await Api.InstallBottleFromDrawerAsync(cageId, itemId);
         if (success)
         {
             bottlePickerValues.Remove(cageId);
@@ -582,6 +604,26 @@ else
             bottleErrors[cageId] = error ?? "Failed to install bottle.";
         }
         bottlesBusy.Remove(cageId);
+    }
+
+    async Task AddAccessoryAsync(string cageId)
+    {
+        var itemId = accessoryPickerValues.GetValueOrDefault(cageId, string.Empty);
+        if (string.IsNullOrEmpty(itemId)) return;
+        accessoriesBusy.Add(cageId);
+        accessoryErrors.Remove(cageId);
+        var (success, error) = await Api.InstallAccessoryFromDrawerAsync(cageId, itemId);
+        if (success)
+        {
+            accessoryPickerValues.Remove(cageId);
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+        }
+        else
+        {
+            accessoryErrors[cageId] = error ?? "Failed to install accessory.";
+        }
+        accessoriesBusy.Remove(cageId);
     }
 
     async Task RemoveBottleAsync(string cageId, string bottleId)

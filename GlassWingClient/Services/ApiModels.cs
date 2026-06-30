@@ -60,6 +60,7 @@ public record HomeResponse(
     HomeFoodStorageBinInfo[]? FoodStorageBins = null,
     int? CageSlots = null,
     int? CagesOccupied = null,
+    int? TotalAccessorySlots = null,
     AutoFillNotification[]? AutoFills = null);
 
 public record CageResponse(
@@ -109,10 +110,10 @@ public record GameSettingsResponse(
 
 // --- Home extras ---
 
-public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId);
-public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items);
+public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId, int AnchorIndex = 0);
+public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items, int AnchorIndex = 0);
 public record HomeStorageDrawerItem(string Id, string TypeId, string Kind);
-public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays);
+public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays, int AnchorIndex = 0);
 public record AutoFillNotification(string CageId, string CageName, bool FoodRefilled, bool WaterRefilled);
 
 // --- Events ---
@@ -136,7 +137,9 @@ public record ShopCatalogueResponse(
     ShopFoodBowlType[] FoodBowls,
     ShopWaterBottleType[] WaterBottles,
     ShopFoodStorageBinType[] FoodStorageBins,
-    ShopFoodType[] Foods);
+    ShopFoodType[] Foods,
+    ShopCarryCaseType[]? CarryCases = null,
+    ShopStorageDrawersType[]? StorageDrawers = null);
 
 public record ShopCageType(string Id, string Brand, string ModelName, string? Tier, int WidthCm, int DepthCm, int HeightCm, int MaxCapacity, int MaxFoodBowlSlots, int MaxWaterBottleSlots, int Price);
 public record ShopAccessoryType(string Id, string Name, string? Description, int BaseEnrichment, string? MinimumTier, int Price);
@@ -144,10 +147,14 @@ public record ShopFoodBowlType(string Id, string Name, int CapacityRatDays, stri
 public record ShopWaterBottleType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
 public record ShopFoodStorageBinType(string Id, string Name, int CapacityRatDays, int Price);
 public record ShopFoodType(string Id, string Name, int QualityTier, int PricePerRatDay, double? HealthBonus, TrainingBonus? TrainingBonus);
+public record ShopCarryCaseType(string Id, string Name, int Price);
+public record ShopStorageDrawersType(string Id, string Name, int SlotsPerUnit, int Price);
 
 public record CagePurchaseResponse(string CageId, string CageName, string CageTypeId, decimal NewBalance);
 public record InventoryPurchaseResponse(string InventoryItemId, string TypeId, string Name, decimal NewBalance);
-public record FoodStorageBinPurchaseResponse(string BinId, int CapacityRatDays, decimal NewBalance);
+public record FoodStorageBinPurchaseResponse(string BinId, int CapacityRatDays, decimal NewBalance, int AnchorIndex = 0);
+public record CarryCasePurchaseResponse(string CarryCaseId, int AnchorIndex, decimal NewBalance);
+public record StorageDrawersPurchaseResponse(string DrawersId, int AnchorIndex, int Capacity, decimal NewBalance);
 public record FoodPurchaseResponse(string BinId, string FoodTypeId, int StoredRatDays, decimal NewBalance);
 
 // --- Inventory ---
