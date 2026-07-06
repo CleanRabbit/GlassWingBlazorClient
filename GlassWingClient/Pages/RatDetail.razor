@@ -19,11 +19,30 @@ else
         </ol>
     </nav>
 
+    @if (!rat.IsRetired && DaysUntilRetirement() is { } daysLeft)
+    {
+        @if (settings?.RetirementWarningLateDays is { } lateDays && daysLeft <= lateDays)
+        {
+            <div class="alert alert-danger py-2">@rat.Name retires in less than a day.</div>
+        }
+        else if (settings?.RetirementWarningEarlyDays is { } earlyDays && daysLeft <= earlyDays)
+        {
+            <div class="alert alert-warning py-2">@rat.Name will retire in about @Math.Ceiling(daysLeft) day@(Math.Ceiling(daysLeft) == 1 ? "" : "s").</div>
+        }
+    }
+
     <div class="d-flex align-items-center gap-3 mb-4">
-        @if (!renaming)
+        @if (rat.IsRetired)
+        {
+            <h1 class="mb-0">@rat.Name</h1>
+            <span class="badge bg-dark">Retired</span>
+            <span class="text-muted">@RetirementReasonLabel(rat.RetirementReason) @(rat.RetiredAt is { } ra ? $"· {ra:dd MMM yyyy}" : "")</span>
+        }
+        else if (!renaming)
         {
             <h1 class="mb-0">@rat.Name</h1>
             <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
+            <button class="btn btn-sm btn-outline-danger" @onclick="() => showRetireConfirm = true">Retire</button>
         }
         else
         {
@@ -177,19 +196,61 @@ else
     }
 
     @* Training *@
-    <h5>Training</h5>
-    <div class="d-flex gap-2 mb-2">
-        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Sprint")' disabled="@training">Sprint</button>
-        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Agility")' disabled="@training">Agility</button>
-        <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Endurance")' disabled="@training">Endurance</button>
-    </div>
-    @if (trainMessage is not null)
+    @if (!rat.IsRetired)
     {
-        <div class="alert @(trainSuccess ? "alert-success" : "alert-warning") py-2">@trainMessage</div>
+        <h5>Training</h5>
+        <div class="d-flex gap-2 mb-2">
+            <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Sprint")' disabled="@training">Sprint</button>
+            <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Agility")' disabled="@training">Agility</button>
+            <button class="btn btn-outline-primary" @onclick='() => TrainAsync("Endurance")' disabled="@training">Endurance</button>
+        </div>
+        @if (trainMessage is not null)
+        {
+            <div class="alert @(trainSuccess ? "alert-success" : "alert-warning") py-2">@trainMessage</div>
+        }
+    }
+
+    @* Breeding *@
+    @if (!rat.IsRetired && rat.LifeStage == "Adult")
+    {
+        <h5 class="mt-4">Breeding</h5>
+        @if (rat.Sex == "Male")
+        {
+            <p class="text-muted small">This rat can sire litters. Start breeding from the mother's page.</p>
+        }
+        else if (rat.IsPregnant)
+        {
+            <p class="mb-1">
+                🐭 Pregnant — due @(rat.DueAt is { } due ? $"in {Math.Max(0, (due - DateTime.UtcNow).Days)} day{(Math.Max(0, (due - DateTime.UtcNow).Days) == 1 ? "" : "s")}" : "soon")
+                @if (fatherName is not null)
+                {
+                    <text>(sired by @fatherName)</text>
+                }
+            </p>
+        }
+        else
+        {
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                <select class="form-select form-select-sm" style="max-width: 220px" @bind="selectedMateId">
+                    <option value="">— pick a mate —</option>
+                    @foreach (var m in maleRats)
+                    {
+                        <option value="@m.Id">@m.Name</option>
+                    }
+                </select>
+                <button class="btn btn-outline-primary btn-sm" @onclick="BreedAsync" disabled="@(string.IsNullOrEmpty(selectedMateId) || breeding)">
+                    @(breeding ? "Breeding..." : "Breed")
+                </button>
+            </div>
+            @if (breedMessage is not null)
+            {
+                <div class="alert alert-danger py-2">@breedMessage</div>
+            }
+        }
     }
 
     @* Marketplace *@
-    @if (rat.HealthState?.Vitality == "Healthy")
+    @if (!rat.IsRetired && rat.HealthState?.Vitality == "Healthy")
     {
         <h5 class="mt-4">Marketplace</h5>
         @if (!listingFormOpen)
@@ -233,6 +294,33 @@ else
     }
 }
 
+@if (showRetireConfirm && rat is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Retire @rat.Name?</h5>
+                    <button type="button" class="btn-close" @onclick="CloseRetireModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">This is permanent. @rat.Name will be removed from gameplay and kept as a frozen record. This cannot be undone.</p>
+                    @if (retireError is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-0 mt-3">@retireError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseRetireModal" disabled="@retireBusy">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmRetireAsync" disabled="@retireBusy">
+                        @(retireBusy ? "Retiring..." : "Retire Rat")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Id { get; set; } = "";
 
@@ -248,18 +336,33 @@ else
     bool listingBusy;
     string? listingMessage;
     bool listingSuccess;
+    bool showRetireConfirm;
+    bool retireBusy;
+    string? retireError;
+    RatResponse[] maleRats = [];
+    string selectedMateId = "";
+    bool breeding;
+    string? breedMessage;
+    string? fatherName;
 
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync());
+        await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync(), LoadMaleRatsAsync());
     }
 
     async Task LoadRatAsync()
     {
         rat = await Api.GetRatAsync(Id);
         newName = rat?.Name ?? "";
+        if (rat is { IsPregnant: true, FatherId: { } fatherId })
+            fatherName = (await Api.GetRatAsync(fatherId))?.Name ?? "another rat";
     }
+
+    async Task LoadMaleRatsAsync() =>
+        maleRats = (await Api.ListRatsAsync() ?? [])
+            .Where(r => r.Sex == "Male" && !r.IsRetired && r.Id != Id)
+            .ToArray();
 
     async Task LoadSettingsAsync() => settings = await Api.GetGameSettingsAsync();
 
@@ -296,11 +399,82 @@ else
         training = false;
     }
 
+    async Task BreedAsync()
+    {
+        if (string.IsNullOrEmpty(selectedMateId)) return;
+        breeding = true;
+        breedMessage = null;
+        var (result, error, reason) = await Api.BreedRatsAsync(Id, selectedMateId);
+        if (result is not null)
+        {
+            await LoadRatAsync();
+            selectedMateId = "";
+        }
+        else
+        {
+            breedMessage = BreedErrorMessage(reason) ?? error ?? "Failed to breed.";
+        }
+        breeding = false;
+    }
+
+    static string? BreedErrorMessage(string? reason) => reason switch
+    {
+        "WrongSexPairing"       => "One rat must be male and one female.",
+        "FemaleRetired"         => "This rat has retired and can no longer breed.",
+        "MaleRetired"           => "The selected mate has retired.",
+        "AlreadyPregnant"       => "This rat is already pregnant.",
+        "CooldownActive"        => "Still recovering from her last litter.",
+        "LitterLimitReached"    => "This rat has reached her lifetime litter limit.",
+        "FemaleNotAdult"        => "Must be fully grown to breed.",
+        "FemaleTooYoung"        => "Outside the breeding age window.",
+        "FemaleTooOld"          => "Outside the breeding age window.",
+        "MaleTooOld"            => "The selected mate is too old to sire a litter.",
+        "SexSeparationRequired" => "Separate the mixed-sex adults in your home before breeding.",
+        _                       => null
+    };
+
     void CancelListingForm()
     {
         listingFormOpen = false;
         listingMessage  = null;
     }
+
+    void CloseRetireModal()
+    {
+        showRetireConfirm = false;
+        retireError = null;
+    }
+
+    async Task ConfirmRetireAsync()
+    {
+        retireBusy = true;
+        retireError = null;
+        var (updated, error, _) = await Api.RetireRatAsync(Id);
+        if (updated is not null)
+        {
+            rat = updated;
+            showRetireConfirm = false;
+        }
+        else
+        {
+            retireError = error ?? "Failed to retire rat.";
+        }
+        retireBusy = false;
+    }
+
+    double? DaysUntilRetirement()
+    {
+        if (rat is null || rat.RetiresAt == default) return null;
+        return (rat.RetiresAt - DateTime.UtcNow).TotalDays;
+    }
+
+    static string RetirementReasonLabel(string? reason) => reason switch
+    {
+        "NaturalAge"       => "Natural age",
+        "PlayerInitiated"  => "Player choice",
+        "CriticalHealth"   => "Critical health",
+        _                  => ""
+    };
 
     async Task CreateListingAsync()
     {

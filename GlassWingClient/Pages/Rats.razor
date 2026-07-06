@@ -28,16 +28,28 @@ else
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Sex</th>
                 <th>Sprint</th>
                 <th>Agility</th>
                 <th>Endurance</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var rat in rats)
+            @foreach (var rat in rats.OrderBy(r => r.IsRetired))
             {
-                <tr @onclick="() => OpenRat(rat.Id)" style="cursor: pointer">
-                    <td>@rat.Name</td>
+                <tr @onclick="() => OpenRat(rat.Id)" style="cursor: pointer" class="@(rat.IsRetired ? "text-muted" : "")">
+                    <td>
+                        @rat.Name
+                        @if (rat.IsRetired)
+                        {
+                            <span class="badge bg-dark ms-1">Retired</span>
+                        }
+                        @if (rat.IsPregnant)
+                        {
+                            <span class="badge bg-info text-dark ms-1">Pregnant</span>
+                        }
+                    </td>
+                    <td>@rat.Sex</td>
                     <td>@FormatScore(rat.Fitness?.Sprint)</td>
                     <td>@FormatScore(rat.Fitness?.Agility)</td>
                     <td>@FormatScore(rat.Fitness?.Endurance)</td>

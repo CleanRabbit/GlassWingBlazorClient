@@ -9,7 +9,28 @@ public record RatResponse(
     TrainingFitness? Fitness,
     HealthState? HealthState,
     RatPhenotype? Phenotype,
-    string[]? TricksLearned);
+    string[]? TricksLearned,
+    bool IsRetired = false,
+    DateTime? RetiredAt = null,
+    string? RetirementReason = null,
+    DateTime RetiresAt = default,
+    string Sex = "Female",
+    string LifeStage = "Adult",
+    int LitterCount = 0,
+    bool IsPregnant = false,
+    DateTime? DueAt = null,
+    string? MotherId = null,
+    string? FatherId = null);
+
+public record PregnancyResponse(
+    string FatherId,
+    int GestationRatDays,
+    DateTime DueAt,
+    double ConceptionWellnessScore);
+
+// Shared 409 conflict body shape — { error, reason } — used by retire, breed, and
+// future train/sex-separation endpoints.
+public record ApiErrorResponse(string? Error, string? Reason);
 
 public record TrainingFitness(StatFitness? Sprint, StatFitness? Agility, StatFitness? Endurance);
 public record StatFitness(double Score, int TrainingCount);
@@ -108,7 +129,11 @@ public record GameSettingsResponse(
     double TrainingCooldownScale,
     double IllnessProgressionScale,
     decimal? MarketplaceListingFee = null,
-    double? MarketplaceTransactionFeePercent = null);
+    double? MarketplaceTransactionFeePercent = null,
+    double? RatLifespanDays = null,
+    double? CriticalHealthRetirementThresholdDays = null,
+    double? RetirementWarningEarlyDays = null,
+    double? RetirementWarningLateDays = null);
 
 // --- Home extras ---
 

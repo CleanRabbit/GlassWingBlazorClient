@@ -75,6 +75,46 @@ public class GlassWingApiClient(HttpClient http)
         return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
+    public async Task<(RatResponse? Rat, string? Error, string? Reason)> RetireRatAsync(string id)
+    {
+        var resp = await http.PostAsync($"/api/rats/{id}/retire", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null, null);
+        var (error, reason) = await ParseErrorAsync(resp);
+        return (null, error, reason);
+    }
+
+    public async Task<(PregnancyResponse? Result, string? Error, string? Reason)> BreedRatsAsync(string femaleRatId, string maleRatId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/rats/breed", new { femaleRatId, maleRatId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<PregnancyResponse>(JsonOpts), null, null);
+        var (error, reason) = await ParseErrorAsync(resp);
+        return (null, error, reason);
+    }
+
+    // Shared 409/404 conflict-body parser — reused by any endpoint returning the
+    // { error, reason } shape (retire today; breed/train/sex-separation later).
+    static async Task<(string? Error, string? Reason)> ParseErrorAsync(HttpResponseMessage resp)
+    {
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return ("Rat not found.", null);
+
+        var body = await resp.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(body))
+            return ($"Error {(int)resp.StatusCode}", null);
+
+        try
+        {
+            var err = JsonSerializer.Deserialize<ApiErrorResponse>(body, JsonOpts);
+            if (err?.Reason is not null)
+                return (err.Error ?? err.Reason, err.Reason);
+        }
+        catch (JsonException) { /* not a structured error body */ }
+
+        return (body, null);
+    }
+
     // --- Home ---
 
     public async Task<(HomeResponse? Home, string? Error)> GetHomeAsync()
