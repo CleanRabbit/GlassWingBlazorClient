@@ -6,7 +6,6 @@ public record RatResponse(
     string Id,
     string Name,
     string OwnerId,
-    TrainingFitness? Fitness,
     HealthState? HealthState,
     RatPhenotype? Phenotype,
     string[]? TricksLearned,
@@ -20,7 +19,13 @@ public record RatResponse(
     bool IsPregnant = false,
     DateTime? DueAt = null,
     string? MotherId = null,
-    string? FatherId = null);
+    string? FatherId = null,
+    double SprintAbility = 1,
+    double AgilityAbility = 1,
+    double EnduranceAbility = 1,
+    int SprintPotential = 100,
+    int AgilityPotential = 100,
+    int EndurancePotential = 100);
 
 public record PregnancyResponse(
     string FatherId,
@@ -32,8 +37,7 @@ public record PregnancyResponse(
 // future train/sex-separation endpoints.
 public record ApiErrorResponse(string? Error, string? Reason);
 
-public record TrainingFitness(StatFitness? Sprint, StatFitness? Agility, StatFitness? Endurance);
-public record StatFitness(double Score, int TrainingCount);
+public record ApiProblemDetails(string? Title, string? Detail);
 
 // --- Health ---
 
@@ -113,6 +117,7 @@ public record CageTypeInfo(
 public record CageFoodInfo(string Id, string Name);
 public record CageRegimeInfo(string Id, string Name);
 public record TrainingBonus(double Sprint, double Agility, double Endurance);
+public record TrainingRegimeResponse(string Id, string Name, string Description, TrainingBonus Training);
 
 public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays);
 public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays);
@@ -173,7 +178,7 @@ public record ShopAccessoryType(string Id, string Name, string? Description, int
 public record ShopFoodBowlType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
 public record ShopWaterBottleType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
 public record ShopFoodStorageBinType(string Id, string Name, int CapacityRatDays, int Price);
-public record ShopFoodType(string Id, string Name, int QualityTier, int PricePerRatDay, double? HealthBonus, TrainingBonus? TrainingBonus);
+public record ShopFoodType(string Id, string Name, int QualityTier, int InGamePrice, double? HealthBonus);
 public record ShopCarryCaseType(string Id, string Name, int Price);
 public record ShopStorageDrawersType(string Id, string Name, int SlotsPerUnit, int Price);
 

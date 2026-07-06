@@ -280,14 +280,6 @@ else
                             <p class="small mb-1">
                                 <span class="text-muted">Quality tier</span> @item.QualityTier
                             </p>
-                            @if (item.TrainingBonus is { } tb)
-                            {
-                                <p class="small mb-1 text-muted">
-                                    Sprint ×@tb.Sprint.ToString("F2") ·
-                                    Agi ×@tb.Agility.ToString("F2") ·
-                                    End ×@tb.Endurance.ToString("F2")
-                                </p>
-                            }
                             @if (item.HealthBonus is { } hb && hb > 0)
                             {
                                 <p class="small mb-1">
@@ -296,7 +288,7 @@ else
                                 </p>
                             }
                             <p class="small mb-2">
-                                <strong>@item.PricePerRatDay cr</strong>
+                                <strong>@item.InGamePrice cr</strong>
                                 <span class="text-muted">/ rat-day</span>
                             </p>
 
@@ -339,7 +331,7 @@ else
                                                 @if (foodRatDays > 0)
                                                 {
                                                     <div class="text-muted small mt-1">
-                                                        Total: @(foodRatDays * item.PricePerRatDay) cr
+                                                        Total: @(foodRatDays * item.InGamePrice) cr
                                                     </div>
                                                 }
                                             </div>

@@ -347,9 +347,9 @@ else
                                 {
                                     <select class="form-select form-select-sm d-inline-block" style="max-width:165px" @bind="regimePickerValue">
                                         <option value="">— none —</option>
-                                        @foreach (var (rId, rName) in TrainingRegimes)
+                                        @foreach (var regime in trainingRegimes)
                                         {
-                                            <option value="@rId">@rName</option>
+                                            <option value="@regime.Id">@regime.Name</option>
                                         }
                                     </select>
                                     <button class="btn btn-primary btn-sm" disabled="@regimeBusy"
@@ -373,11 +373,11 @@ else
                             @if (cage.TrainingEfficacy is { } eff)
                             {
                                 <div class="text-muted">
-                                    <span class="@EfficacyClass(eff.Sprint)">Sprint ×@eff.Sprint.ToString("F2")</span>
+                                    <span class="@EfficacyClass(eff.Sprint)">Sprint +@eff.Sprint.ToString("F1")</span>
                                     <span class="mx-1">·</span>
-                                    <span class="@EfficacyClass(eff.Agility)">Agi ×@eff.Agility.ToString("F2")</span>
+                                    <span class="@EfficacyClass(eff.Agility)">Agi +@eff.Agility.ToString("F1")</span>
                                     <span class="mx-1">·</span>
-                                    <span class="@EfficacyClass(eff.Endurance)">End ×@eff.Endurance.ToString("F2")</span>
+                                    <span class="@EfficacyClass(eff.Endurance)">End +@eff.Endurance.ToString("F1")</span>
                                 </div>
                             }
                         </div>
@@ -417,14 +417,7 @@ else
 }
 
 @code {
-    static readonly (string Id, string Name)[] TrainingRegimes =
-    [
-        ("track-runs",         "Track Runs"),
-        ("furniture-scramble", "Furniture Scramble"),
-        ("dash-drills",        "Dash Drills"),
-        ("tunnel-rush",        "Tunnel Rush"),
-        ("endurance-circuit",  "Endurance Circuit"),
-    ];
+    TrainingRegimeResponse[] trainingRegimes = [];
 
     HomeResponse? home;
     ShopCatalogueResponse? catalogue;
@@ -480,8 +473,10 @@ else
             var homeTask      = Api.GetHomeAsync();
             var settingsTask  = Api.GetGameSettingsAsync();
             var catalogueTask = Api.GetShopCatalogueAsync();
+            var regimesTask   = Api.GetTrainingRegimesAsync();
             var (homeResult, settings) = (await homeTask, await settingsTask);
-            catalogue = await catalogueTask;
+            catalogue        = await catalogueTask;
+            trainingRegimes  = await regimesTask ?? [];
             var (data, error) = homeResult;
             home         = data;
             loadError    = error;
@@ -713,5 +708,5 @@ else
     };
 
     static string EfficacyClass(double v) =>
-        v > 1.0 ? "text-success" : v < 1.0 ? "text-warning" : "text-muted";
+        v >= 1.5 ? "text-success" : v > 0 ? "text-muted" : "text-muted opacity-50";
 }

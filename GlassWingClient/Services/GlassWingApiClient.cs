@@ -71,8 +71,20 @@ public class GlassWingApiClient(HttpClient http)
         var resp = await http.PostAsJsonAsync($"/api/rats/{id}/train", new { stat }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+
         var body = await resp.Content.ReadAsStringAsync();
-        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        if (string.IsNullOrWhiteSpace(body))
+            return (null, $"Error {(int)resp.StatusCode}");
+
+        try
+        {
+            var problem = JsonSerializer.Deserialize<ApiProblemDetails>(body, JsonOpts);
+            if (problem?.Detail is not null)
+                return (null, problem.Detail);
+        }
+        catch (JsonException) { /* not a ProblemDetails body */ }
+
+        return (null, body);
     }
 
     public async Task<(RatResponse? Rat, string? Error, string? Reason)> RetireRatAsync(string id)
@@ -232,6 +244,14 @@ public class GlassWingApiClient(HttpClient http)
         var resp = await http.GetAsync("/api/game/settings");
         return resp.IsSuccessStatusCode
             ? await resp.Content.ReadFromJsonAsync<GameSettingsResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<TrainingRegimeResponse[]?> GetTrainingRegimesAsync()
+    {
+        var resp = await http.GetAsync("/api/game/training-regimes");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<TrainingRegimeResponse[]>(JsonOpts)
             : null;
     }
 

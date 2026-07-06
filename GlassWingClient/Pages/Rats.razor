@@ -50,9 +50,9 @@ else
                         }
                     </td>
                     <td>@rat.Sex</td>
-                    <td>@FormatScore(rat.Fitness?.Sprint)</td>
-                    <td>@FormatScore(rat.Fitness?.Agility)</td>
-                    <td>@FormatScore(rat.Fitness?.Endurance)</td>
+                    <td>@rat.SprintAbility.ToString("F1")</td>
+                    <td>@rat.AgilityAbility.ToString("F1")</td>
+                    <td>@rat.EnduranceAbility.ToString("F1")</td>
                 </tr>
             }
         </tbody>
@@ -80,6 +80,4 @@ else
         creating = false;
     }
 
-    static string FormatScore(StatFitness? stat) =>
-        stat is null ? "—" : stat.Score.ToString("F2");
 }
