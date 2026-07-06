@@ -41,8 +41,20 @@ else
         else if (!renaming)
         {
             <h1 class="mb-0">@rat.Name</h1>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
-            <button class="btn btn-sm btn-outline-danger" @onclick="() => showRetireConfirm = true">Retire</button>
+            <span class="badge bg-info text-dark">@rat.LifeStage</span>
+            @if (rat.IsNursing)
+            {
+                <span class="badge bg-warning text-dark" title="Nursing — locked to this cage; cannot train, breed, enter events, or be moved/sold/listed">🔒 Nursing</span>
+            }
+            else if (rat.IsProtective)
+            {
+                <span class="badge bg-warning text-dark" title="Protective mother — free-roam training unavailable too">🛡️ Protective</span>
+            }
+            @if (rat.LifeStage != "Weening")
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => showRetireConfirm = true">Retire</button>
+            }
         }
         else
         {
@@ -52,6 +64,23 @@ else
         }
     </div>
 
+    @if (rat.LifeStage == "Weening")
+    {
+        <div class="card" style="max-width:400px">
+            <div class="card-body">
+                <p class="mb-1">Born @rat.DateOfBirth.ToString("dd MMM yyyy")</p>
+                @if (motherName is not null)
+                {
+                    <p class="mb-1">Mother: <a href="/rats/@rat.MotherId">@motherName</a></p>
+                }
+                <p class="text-muted small mb-0">
+                    Too young to show full details. Check back once @rat.Name reaches the Infant stage.
+                </p>
+            </div>
+        </div>
+    }
+    else
+    {
     <div class="row g-3 mb-3">
 
         @* Ability *@
@@ -203,7 +232,7 @@ else
     }
 
     @* Training *@
-    @if (!rat.IsRetired)
+    @if (!rat.IsRetired && rat.LifeStage != "Infant" && !rat.IsNursing)
     {
         <h5>Training</h5>
         <div class="d-flex gap-2 mb-2">
@@ -218,7 +247,7 @@ else
     }
 
     @* Breeding *@
-    @if (!rat.IsRetired && rat.LifeStage == "Adult")
+    @if (!rat.IsRetired && rat.LifeStage == "Adult" && !rat.IsNursing)
     {
         <h5 class="mt-4">Breeding</h5>
         @if (rat.Sex == "Male")
@@ -257,7 +286,7 @@ else
     }
 
     @* Marketplace *@
-    @if (!rat.IsRetired && rat.HealthState?.Vitality == "Healthy")
+    @if (!rat.IsRetired && !rat.IsNursing && rat.HealthState?.Vitality == "Healthy")
     {
         <h5 class="mt-4">Marketplace</h5>
         @if (!listingFormOpen)
@@ -298,6 +327,7 @@ else
                 </div>
             </div>
         }
+    }
     }
 }
 
@@ -351,6 +381,7 @@ else
     bool breeding;
     string? breedMessage;
     string? fatherName;
+    string? motherName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -364,6 +395,8 @@ else
         newName = rat?.Name ?? "";
         if (rat is { IsPregnant: true, FatherId: { } fatherId })
             fatherName = (await Api.GetRatAsync(fatherId))?.Name ?? "another rat";
+        if (rat is { LifeStage: "Weening", MotherId: { } motherId })
+            motherName = (await Api.GetRatAsync(motherId))?.Name ?? "another rat";
     }
 
     async Task LoadMaleRatsAsync() =>

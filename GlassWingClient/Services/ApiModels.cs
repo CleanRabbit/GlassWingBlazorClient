@@ -25,7 +25,12 @@ public record RatResponse(
     double EnduranceAbility = 1,
     int SprintPotential = 100,
     int AgilityPotential = 100,
-    int EndurancePotential = 100);
+    int EndurancePotential = 100,
+    bool IsNursing = false,
+    bool IsProtective = false,
+    DateTime DateOfBirth = default);
+
+public record LifeStageNotification(string RatId, string RatName, string PreviousStage, string NewStage, string Message);
 
 public record PregnancyResponse(
     string FatherId,
@@ -86,7 +91,8 @@ public record HomeResponse(
     int? CageSlots = null,
     int? CagesOccupied = null,
     int? TotalAccessorySlots = null,
-    AutoFillNotification[]? AutoFills = null);
+    AutoFillNotification[]? AutoFills = null,
+    LifeStageNotification[]? LifeStageNotifications = null);
 
 public record CageResponse(
     string Id,
@@ -123,7 +129,7 @@ public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays);
 public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays);
 public record InstalledAccessoryInfo(string Id, string Name, string? Description);
 
-public record RatSummary(string Id, string Name);
+public record RatSummary(string Id, string Name, string LifeStage = "Adult", bool IsNursing = false, bool IsProtective = false);
 
 // --- Game ---
 

@@ -35,6 +35,22 @@ else
         </details>
     }
 
+    @if (home!.LifeStageNotifications is { Length: > 0 })
+    {
+        @for (int i = 0; i < home.LifeStageNotifications.Length; i++)
+        {
+            var idx = i;
+            if (!dismissedLifeStageNotifications.Contains(idx))
+            {
+                <div class="alert alert-success alert-dismissible mb-2 py-2" role="alert">
+                    ✨ @home.LifeStageNotifications[idx].Message
+                    <button type="button" class="btn-close" aria-label="Dismiss"
+                            @onclick="() => dismissedLifeStageNotifications.Add(idx)"></button>
+                </div>
+            }
+        }
+    }
+
     @if (home!.AutoFills is { Length: > 0 })
     {
         @for (int i = 0; i < home.AutoFills.Length; i++)
@@ -144,9 +160,22 @@ else
                             {
                                 if (i < cage.Rats.Length)
                                 {
-                                    <a href="/rats/@cage.Rats[i].Id"
-                                       class="badge bg-secondary text-decoration-none me-1 mb-1">
-                                        @cage.Rats[i].Name
+                                    var chipRat = cage.Rats[i];
+                                    <a href="/rats/@chipRat.Id"
+                                       class="badge @LifeStageBadgeClass(chipRat.LifeStage) text-decoration-none me-1 mb-1">
+                                        @(chipRat.LifeStage == "Weening" ? "Pup" : chipRat.Name)
+                                        @if (chipRat.LifeStage is "Infant" or "Juvenile")
+                                        {
+                                            <sup>@LifeStageAbbreviation(chipRat.LifeStage)</sup>
+                                        }
+                                        @if (chipRat.IsNursing)
+                                        {
+                                            <text> </text><span title="Nursing — locked to this cage">🔒</span>
+                                        }
+                                        else if (chipRat.IsProtective)
+                                        {
+                                            <text> </text><span title="Protective mother — free-roam unavailable too">🛡️</span>
+                                        }
                                     </a>
                                 }
                                 else
@@ -446,6 +475,17 @@ else
     readonly Dictionary<string, string?> bottleErrors = [];
     readonly Dictionary<string, string?> accessoryErrors = [];
     readonly HashSet<int> dismissedAutoFills = [];
+    readonly HashSet<int> dismissedLifeStageNotifications = [];
+
+    static string LifeStageBadgeClass(string lifeStage) =>
+        lifeStage == "Weening" ? "bg-danger-subtle text-danger-emphasis border border-danger-subtle" : "bg-secondary";
+
+    static string LifeStageAbbreviation(string lifeStage) => lifeStage switch
+    {
+        "Infant"   => "Inf",
+        "Juvenile" => "Juv",
+        _          => ""
+    };
 
     string GetFoodName(string typeId) =>
         catalogue?.Foods.FirstOrDefault(f => f.Id == typeId)?.Name ?? typeId;
