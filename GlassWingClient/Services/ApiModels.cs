@@ -161,7 +161,8 @@ public record HomeResponse(
     ChallengesSummaryInfo? Challenges = null,
     SeasonalEventSummaryInfo? SeasonalEvent = null,
     string[]? VetTreatmentNotifications = null,
-    HomeMedicationDeviceInfo[]? MedicationDevices = null);
+    HomeMedicationDeviceInfo[]? MedicationDevices = null,
+    string[]? MischiefNotifications = null);
 
 // --- Vet/OTC home extras ---
 
@@ -258,7 +259,8 @@ public record CageResponse(
     InstalledBottleInfo[]? WaterBottles,
     InstalledAccessoryInfo[]? Accessories,
     RatSummary[] Rats,
-    string? ActiveCosmeticId = null);
+    string? ActiveCosmeticId = null,
+    double Cleanliness = 100);
 
 public record CageTypeInfo(
     string Id,
@@ -277,9 +279,9 @@ public record CageRegimeInfo(string Id, string Name);
 public record TrainingBonus(double Sprint, double Agility, double Endurance);
 public record TrainingRegimeResponse(string Id, string Name, string Description, TrainingBonus Training);
 
-public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays);
-public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays);
-public record InstalledAccessoryInfo(string Id, string Name, string? Description);
+public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays, double Cleanliness = 100, double Condition = 100);
+public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays, double Cleanliness = 100, double Condition = 100);
+public record InstalledAccessoryInfo(string Id, string Name, string? Description, double Cleanliness = 100, double Condition = 100);
 
 public record RatSummary(
     string Id, string Name, string LifeStage = "Adult", bool IsNursing = false, bool IsProtective = false,
@@ -307,10 +309,10 @@ public record GameSettingsResponse(
 
 // --- Home extras ---
 
-public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId, int AnchorIndex = 0);
-public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items, int AnchorIndex = 0);
-public record HomeStorageDrawerItem(string Id, string TypeId, string Kind);
-public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays, int AnchorIndex = 0);
+public record HomeCarryCaseInfo(string Id, string TypeId, string? RatId, int AnchorIndex = 0, double Cleanliness = 100, double Condition = 100);
+public record HomeStorageDrawerInfo(string Id, string TypeId, int Capacity, int SlotsAvailable, HomeStorageDrawerItem[] Items, int AnchorIndex = 0, double Cleanliness = 100, double Condition = 100);
+public record HomeStorageDrawerItem(string Id, string TypeId, string Kind, double Cleanliness = 100, double Condition = 100, DateTime? CleaningEndsAt = null, bool IsCleaning = false);
+public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatDays, int CapacityRatDays, int AnchorIndex = 0, double Cleanliness = 100, double Condition = 100);
 public record AutoFillNotification(string CageId, string CageName, bool FoodRefilled, bool WaterRefilled);
 
 // --- Events ---

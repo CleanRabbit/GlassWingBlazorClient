@@ -105,6 +105,22 @@ else
         }
     }
 
+    @if (home!.MischiefNotifications is { Length: > 0 })
+    {
+        @for (int i = 0; i < home.MischiefNotifications.Length; i++)
+        {
+            var idx = i;
+            if (!dismissedMischiefNotifications.Contains(idx))
+            {
+                <div class="alert alert-warning alert-dismissible mb-2 py-2" role="alert">
+                    🐭 @home.MischiefNotifications[idx]
+                    <button type="button" class="btn-close" aria-label="Dismiss"
+                            @onclick="() => dismissedMischiefNotifications.Add(idx)"></button>
+                </div>
+            }
+        }
+    }
+
     @if (home!.SeasonalEvent is { Active: true } se)
     {
         <div class="alert alert-primary d-flex justify-content-between align-items-center mb-2 py-2">
@@ -185,6 +201,13 @@ else
                                 @ct.Brand @ct.ModelName · @ct.WidthCm × @ct.DepthCm × @ct.HeightCm cm
                             </div>
                         }
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted small">Cleanliness</span>
+                            <span class="small">@cage.Cleanliness.ToString("F0")%</span>
+                        </div>
+                        <div class="progress mb-2" style="height:6px">
+                            <div class="progress-bar @BarClass((int)cage.Cleanliness)" style="width:@(cage.Cleanliness.ToString("F0"))%"></div>
+                        </div>
 
                         <hr class="my-2" />
 
@@ -321,6 +344,7 @@ else
                                             <span class="text-muted">Bowl</span>
                                             · @bowl.Name
                                             <span class="text-muted">(@bowl.CapacityRatDays rd)</span>
+                                            <span class="badge @ConditionBadgeClass(bowl.Condition) ms-1">@bowl.Condition.ToString("F0")%</span>
                                         </span>
                                         <button class="btn btn-link btn-sm text-danger p-0 ms-2"
                                                 disabled="@bowlsBusy.Contains(cage.Id)"
@@ -355,6 +379,7 @@ else
                                             <span class="text-muted">Bottle</span>
                                             · @bottle.Name
                                             <span class="text-muted">(@bottle.CapacityRatDays rd)</span>
+                                            <span class="badge @ConditionBadgeClass(bottle.Condition) ms-1">@bottle.Condition.ToString("F0")%</span>
                                         </span>
                                         <button class="btn btn-link btn-sm text-danger p-0 ms-2"
                                                 disabled="@bottlesBusy.Contains(cage.Id)"
@@ -391,7 +416,11 @@ else
                                             {
                                                 <span class="text-muted ms-1 small">— @acc.Description</span>
                                             }
+                                            <span class="badge @ConditionBadgeClass(acc.Condition) ms-1">@acc.Condition.ToString("F0")%</span>
                                         </span>
+                                        <button class="btn btn-link btn-sm text-danger p-0 ms-2"
+                                                disabled="@accessoriesBusy.Contains(cage.Id)"
+                                                @onclick="() => RemoveAccessoryAsync(cage.Id, acc.Id)">Remove</button>
                                     </li>
                                 }
                                 @if (canAddAccessory)
@@ -545,6 +574,7 @@ else
     readonly HashSet<int> dismissedAutoFills = [];
     readonly HashSet<int> dismissedLifeStageNotifications = [];
     readonly HashSet<int> dismissedVetNotifications = [];
+    readonly HashSet<int> dismissedMischiefNotifications = [];
     bool dailyRewardBusy;
     CosmeticEntry[] ownedCageDecorations = [];
     readonly HashSet<string> cosmeticBusy = [];
@@ -839,6 +869,18 @@ else
         accessoriesBusy.Remove(cageId);
     }
 
+    async Task RemoveAccessoryAsync(string cageId, string accessoryId)
+    {
+        accessoriesBusy.Add(cageId);
+        accessoryErrors.Remove(cageId);
+        var (success, error) = await Api.RemoveAccessoryAsync(cageId, accessoryId);
+        if (!success)
+            accessoryErrors[cageId] = error ?? "Failed to remove accessory.";
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) home = data;
+        accessoriesBusy.Remove(cageId);
+    }
+
     async Task RemoveBottleAsync(string cageId, string bottleId)
     {
         bottlesBusy.Add(cageId);
@@ -897,6 +939,13 @@ else
     {
         >= 60 => "bg-success",
         >= 30 => "bg-warning",
+        _     => "bg-danger"
+    };
+
+    static string ConditionBadgeClass(double condition) => condition switch
+    {
+        >= 60 => "bg-secondary",
+        >= 30 => "bg-warning text-dark",
         _     => "bg-danger"
     };
 

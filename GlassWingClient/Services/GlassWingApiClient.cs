@@ -434,6 +434,22 @@ public class GlassWingApiClient(HttpClient http)
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<(bool Success, string? Error)> RemoveAccessoryAsync(string cageId, string accessoryId)
+    {
+        var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/accessories/{accessoryId}");
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> DiscardHomeAccessoryAsync(string accessoryId)
+    {
+        var resp = await http.DeleteAsync($"/api/home/accessories/{accessoryId}");
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     public async Task<(bool Success, string? Error)> PlaceRatFromCarryCaseAsync(string carryCaseId, string cageId)
     {
         var resp = await http.PostAsync($"/api/home/carry-cases/{carryCaseId}/place/{cageId}", null);
