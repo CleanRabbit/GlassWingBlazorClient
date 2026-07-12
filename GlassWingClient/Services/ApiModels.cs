@@ -28,7 +28,8 @@ public record RatResponse(
     int EndurancePotential = 100,
     bool IsNursing = false,
     bool IsProtective = false,
-    DateTime DateOfBirth = default);
+    DateTime DateOfBirth = default,
+    string? ActiveCosmeticId = null);
 
 public record LifeStageNotification(string RatId, string RatName, string PreviousStage, string NewStage, string Message);
 
@@ -166,6 +167,17 @@ public record SeasonalEventSummaryInfo(
     bool Active, string Name, DateTime EndsAt, int DaysRemaining,
     int ChallengesCompleted, int ChallengesTotal, bool HasPendingCompletions);
 
+// ── Cosmetics (Task 18f) ─────────────────────────────────────────────────────────
+
+// EquippedOn is always [] from the real API (lazy evaluation) — read ActiveCosmeticId off
+// the relevant CageResponse/RatResponse instead, per the backend's own recommendation.
+public record CosmeticEntry(
+    string Id, string Name, string Description, string Rarity, string Availability,
+    int? ShopPrice, string? GrantSource, bool Owned, string[] EquippedOn);
+
+public record CosmeticsResponse(CosmeticEntry[] CageDecorations, CosmeticEntry[] RatAccessories);
+public record BuyCosmeticResponse(int Currency, CosmeticEntry Cosmetic);
+
 public record CageResponse(
     string Id,
     string Name,
@@ -178,7 +190,8 @@ public record CageResponse(
     InstalledBowlInfo[]? FoodBowls,
     InstalledBottleInfo[]? WaterBottles,
     InstalledAccessoryInfo[]? Accessories,
-    RatSummary[] Rats);
+    RatSummary[] Rats,
+    string? ActiveCosmeticId = null);
 
 public record CageTypeInfo(
     string Id,

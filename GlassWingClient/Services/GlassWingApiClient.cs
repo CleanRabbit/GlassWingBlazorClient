@@ -175,6 +175,48 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    // --- Cosmetics (Task 18f) ---
+
+    public async Task<CosmeticsResponse?> GetCosmeticsAsync()
+    {
+        var resp = await http.GetAsync("/api/cosmetics/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<CosmeticsResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(BuyCosmeticResponse? Result, string? Error)> BuyCosmeticAsync(string cosmeticId)
+    {
+        var resp = await http.PostAsync($"/api/cosmetics/{cosmeticId}/buy", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<BuyCosmeticResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode switch
+        {
+            402 => "Insufficient funds.",
+            409 => "Already owned or not purchasable.",
+            _   => string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body
+        });
+    }
+
+    // Real route is /api/home/cages/{cageId}/cosmetic (this API's existing Home-scoped cage
+    // convention), not a top-level /api/cages/... path.
+    public async Task<(bool Success, string? Error)> SetCageCosmeticAsync(string cageId, string? cosmeticId)
+    {
+        var resp = await http.PutAsJsonAsync($"/api/home/cages/{cageId}/cosmetic", new { cosmeticId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> SetRatCosmeticAsync(string ratId, string? cosmeticId)
+    {
+        var resp = await http.PutAsJsonAsync($"/api/rats/{ratId}/cosmetic", new { cosmeticId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     // --- Titles (Task 18b) ---
 
     public async Task<(TitlesResponse? Result, string? Error)> GetTitlesAsync()

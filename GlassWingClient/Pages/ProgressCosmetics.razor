@@ -1,0 +1,140 @@
+@page "/progress/cosmetics"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+
+<PageTitle>Cosmetics — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Cosmetics</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">Failed to load cosmetics.</div>
+}
+else
+{
+    <h1 class="mb-4">Cosmetics</h1>
+
+    @if (success is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @success
+            <button type="button" class="btn-close" @onclick="() => success = null"></button>
+        </div>
+    }
+    @if (error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @error
+            <button type="button" class="btn-close" @onclick="() => error = null"></button>
+        </div>
+    }
+
+    <h4 class="mb-3">Cage Decorations</h4>
+    <div class="row g-3 mb-4">
+        @foreach (var c in data.CageDecorations)
+        {
+            @CosmeticCard(c)
+        }
+    </div>
+
+    <h4 class="mb-3">Rat Accessories</h4>
+    <div class="row g-3">
+        @foreach (var c in data.RatAccessories)
+        {
+            @CosmeticCard(c)
+        }
+    </div>
+}
+
+@code {
+    bool loaded;
+    bool busy;
+    CosmeticsResponse? data;
+    string? success;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        data = await Api.GetCosmeticsAsync();
+        loaded = true;
+    }
+
+    async Task BuyAsync(string cosmeticId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyCosmeticAsync(cosmeticId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.Currency);
+            success = $"{name} added to your collection. New balance: {result.Currency:N0} cr";
+            RewardToasts.Enqueue(new RewardToastItem(
+                RewardToastKind.Cosmetic, "Cosmetic Purchased!", "Now in your collection.", null, null, name));
+            data = await Api.GetCosmeticsAsync();
+        }
+        else
+        {
+            error = err ?? "Failed to buy cosmetic.";
+        }
+        busy = false;
+    }
+
+    RenderFragment CosmeticCard(CosmeticEntry c) => __builder =>
+    {
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <h5 class="card-title mb-0">@c.Name</h5>
+                        <span class="badge @RarityBadgeClass(c.Rarity)">@c.Rarity</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(c.Description))
+                    {
+                        <p class="text-muted small mb-2">@c.Description</p>
+                    }
+                    <div class="mt-auto">
+                        @if (c.Owned)
+                        {
+                            <span class="badge bg-success">Owned</span>
+                        }
+                        else if (c.Availability == "Shop")
+                        {
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>@c.ShopPrice cr</strong>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => BuyAsync(c.Id, c.Name)"
+                                        disabled="@(busy || (PlayerState.Currency is { } bal && c.ShopPrice is { } price && bal < price))">
+                                    Buy
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">@(c.GrantSource ?? "Not yet unlocked")</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    static string RarityBadgeClass(string rarity) => rarity switch
+    {
+        "Common"   => "bg-secondary",
+        "Rare"     => "bg-warning text-dark",
+        "Seasonal" => "bg-info text-dark",
+        _          => "bg-secondary"
+    };
+}

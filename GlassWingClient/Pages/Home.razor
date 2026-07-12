@@ -430,6 +430,23 @@ else
                             {
                                 <div class="text-danger mb-1">@regimeError</div>
                             }
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <span class="text-muted">Decoration</span>
+                                <select class="form-select form-select-sm d-inline-block" style="max-width:165px"
+                                        value="@(cage.ActiveCosmeticId ?? "")"
+                                        @onchange="e => SetCageCosmeticAsync(cage.Id, e.Value?.ToString())"
+                                        disabled="@cosmeticBusy.Contains(cage.Id)">
+                                    <option value="">— none —</option>
+                                    @foreach (var deco in ownedCageDecorations)
+                                    {
+                                        <option value="@deco.Id">@deco.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (cosmeticErrors.TryGetValue(cage.Id, out var cosmeticErr) && cosmeticErr is not null)
+                            {
+                                <div class="text-danger mb-1">@cosmeticErr</div>
+                            }
                             @if (cage.TrainingEfficacy is { } eff)
                             {
                                 <div class="text-muted">
@@ -508,6 +525,9 @@ else
     readonly HashSet<int> dismissedAutoFills = [];
     readonly HashSet<int> dismissedLifeStageNotifications = [];
     bool dailyRewardBusy;
+    CosmeticEntry[] ownedCageDecorations = [];
+    readonly HashSet<string> cosmeticBusy = [];
+    readonly Dictionary<string, string?> cosmeticErrors = [];
 
     static string LifeStageBadgeClass(string lifeStage) =>
         lifeStage == "Weening" ? "bg-danger-subtle text-danger-emphasis border border-danger-subtle" : "bg-secondary";
@@ -546,9 +566,12 @@ else
             var settingsTask  = Api.GetGameSettingsAsync();
             var catalogueTask = Api.GetShopCatalogueAsync();
             var regimesTask   = Api.GetTrainingRegimesAsync();
+            var cosmeticsTask = Api.GetCosmeticsAsync();
             var (homeResult, settings) = (await homeTask, await settingsTask);
             catalogue        = await catalogueTask;
             trainingRegimes  = await regimesTask ?? [];
+            var cosmetics    = await cosmeticsTask;
+            ownedCageDecorations = cosmetics?.CageDecorations.Where(c => c.Owned).ToArray() ?? [];
             var (data, error) = homeResult;
             home         = data;
             loadError    = error;
@@ -828,6 +851,23 @@ else
         var (data, _) = await Api.GetHomeAsync();
         if (data is not null) home = data;
         busyCages.Remove(cageId);
+    }
+
+    async Task SetCageCosmeticAsync(string cageId, string? cosmeticId)
+    {
+        cosmeticBusy.Add(cageId);
+        cosmeticErrors.Remove(cageId);
+        var (success, err) = await Api.SetCageCosmeticAsync(cageId, string.IsNullOrEmpty(cosmeticId) ? null : cosmeticId);
+        if (success)
+        {
+            var (data, _) = await Api.GetHomeAsync();
+            if (data is not null) home = data;
+        }
+        else
+        {
+            cosmeticErrors[cageId] = err ?? "Failed to update decoration.";
+        }
+        cosmeticBusy.Remove(cageId);
     }
 
     bool IsBusy(string cageId) => busyCages.Contains(cageId);
