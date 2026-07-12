@@ -564,6 +564,25 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    public async Task<(LeaderboardResponse? Result, string? Error)> GetLeaderboardAsync(string eventType, string metric, string window)
+    {
+        var resp = await http.GetAsync($"/api/events/leaderboard?eventType={eventType}&metric={metric}&window={window}");
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<LeaderboardResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<RatEventHistoryResponse?> GetRatEventHistoryAsync(string ratId, string? eventType = null, int page = 1, int pageSize = 20)
+    {
+        var url = $"/api/rats/{ratId}/events?page={page}&pageSize={pageSize}";
+        if (eventType is not null) url += $"&eventType={eventType}";
+        var resp = await http.GetAsync(url);
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<RatEventHistoryResponse>(JsonOpts)
+            : null;
+    }
+
     public async Task<LobbyResponse?> GetLobbyAsync(string lobbyId)
     {
         var resp = await http.GetAsync($"/api/events/{lobbyId}");

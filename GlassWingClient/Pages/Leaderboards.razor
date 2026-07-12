@@ -1,0 +1,155 @@
+@page "/leaderboards"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Leaderboards — GlassWing</PageTitle>
+<h1 class="mb-4">Leaderboards</h1>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else
+{
+    <div class="d-flex gap-3 flex-wrap mb-3 align-items-end">
+        <div>
+            <label class="form-label small text-muted mb-1">Event Type</label>
+            <select class="form-select form-select-sm" @bind="eventType" @bind:after="OnEventTypeChangedAsync">
+                @foreach (var et in EventTypes)
+                {
+                    <option value="@et">@TypeLabel(et)</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label small text-muted mb-1">Metric</label>
+            <select class="form-select form-select-sm" @bind="metric" @bind:after="RefreshAsync">
+                @foreach (var m in AvailableMetrics)
+                {
+                    <option value="@m">@MetricLabel(m)</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label small text-muted mb-1">Window</label>
+            <select class="form-select form-select-sm" @bind="window" @bind:after="RefreshAsync">
+                <option value="Daily">Daily</option>
+                <option value="Seasonal">Seasonal</option>
+            </select>
+        </div>
+    </div>
+
+    @if (window == "Seasonal" && settings?.CurrentLeaderboardSeason is { } season)
+    {
+        <p class="text-muted small">
+            Season @season.SeasonNumber &middot; @season.Start.ToLocalTime().ToString("dd MMM") – @season.End.ToLocalTime().ToString("dd MMM yyyy")
+        </p>
+    }
+
+    @if (loadError is not null)
+    {
+        <div class="alert alert-danger">@loadError</div>
+    }
+    else if (boardLoading)
+    {
+        <p class="text-muted small">Loading leaderboard...</p>
+    }
+    else if (board is null || board.Entries.Length == 0)
+    {
+        <p class="text-muted">No entries yet for this combination.</p>
+    }
+    else
+    {
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Rat</th>
+                    <th>Owner</th>
+                    <th class="text-end">@MetricLabel(metric)</th>
+                    <th class="text-end">Entries</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in board.Entries)
+                {
+                    <tr>
+                        <td>@entry.Rank</td>
+                        <td><a href="@($"/rats/{entry.RatId}")">@entry.RatName</a></td>
+                        <td>
+                            @entry.OwnerUsername
+                            @if (entry.OwnerTitle is not null)
+                            {
+                                <span class="text-muted small"> — @entry.OwnerTitle</span>
+                            }
+                        </td>
+                        <td class="text-end">@FormatScore(entry.Score)</td>
+                        <td class="text-end">@entry.EntryCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="text-muted small">@board.TotalEntries total &middot; updated @board.CachedAt.ToLocalTime().ToString("HH:mm:ss")</p>
+    }
+}
+
+@code {
+    static readonly string[] EventTypes = ["Sprint", "AgilityCourse", "Endurance"];
+
+    GameSettingsResponse? settings;
+    LeaderboardResponse? board;
+    bool loaded;
+    bool boardLoading;
+    string? loadError;
+
+    string eventType = "Sprint";
+    string metric = "BestScore";
+    string window = "Daily";
+
+    string[] AvailableMetrics =>
+        settings?.LeaderboardMetricsByEventType is { } byType && byType.TryGetValue(eventType, out var metrics)
+            ? metrics
+            : ["BestScore"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        settings = await Api.GetGameSettingsAsync();
+        if (!AvailableMetrics.Contains(metric)) metric = AvailableMetrics.FirstOrDefault() ?? "BestScore";
+        loaded = true;
+        await RefreshAsync();
+    }
+
+    async Task OnEventTypeChangedAsync()
+    {
+        if (!AvailableMetrics.Contains(metric)) metric = AvailableMetrics.FirstOrDefault() ?? "BestScore";
+        await RefreshAsync();
+    }
+
+    async Task RefreshAsync()
+    {
+        boardLoading = true;
+        loadError = null;
+        var (result, error) = await Api.GetLeaderboardAsync(eventType, metric, window);
+        board = result;
+        loadError = error;
+        boardLoading = false;
+    }
+
+    static string FormatScore(double score) => score == Math.Floor(score) ? score.ToString("F0") : score.ToString("F1");
+
+    static string TypeLabel(string eventType) => eventType switch
+    {
+        "AgilityCourse" => "Agility",
+        _               => eventType
+    };
+
+    static string MetricLabel(string metric) => metric switch
+    {
+        "BestScore"    => "Best Score",
+        "WinCount"     => "Wins",
+        "AverageScore" => "Avg Score",
+        _              => metric
+    };
+}

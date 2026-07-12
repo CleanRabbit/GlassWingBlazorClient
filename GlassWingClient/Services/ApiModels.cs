@@ -407,7 +407,13 @@ public record GameSettingsResponse(
     double? WeatherTooWarmCelsius = null,
     double? WeatherTooColdCelsius = null,
     double? WeatherTooHumidPercent = null,
-    double? WeatherTooDryPercent = null);
+    double? WeatherTooDryPercent = null,
+    int? LeaderboardSeasonDurationDays = null,
+    int? LeaderboardAverageMinEntries = null,
+    LeaderboardSeasonInfo? CurrentLeaderboardSeason = null,
+    Dictionary<string, string[]>? LeaderboardMetricsByEventType = null);
+
+public record LeaderboardSeasonInfo(int SeasonNumber, DateTime Start, DateTime End);
 
 // --- Home extras ---
 
@@ -418,6 +424,29 @@ public record HomeFoodStorageBinInfo(string Id, string TypeId, double StoredRatD
 public record AutoFillNotification(string CageId, string CageName, bool FoodRefilled, bool WaterRefilled);
 
 // --- Events ---
+
+// --- Leaderboards (Task 17) ---
+
+public record LeaderboardResponse(
+    string EventType, string Metric, string Window,
+    DateTime WindowStart, DateTime WindowEnd, int? SeasonNumber,
+    LeaderboardEntryResponse[] Entries, int TotalEntries, DateTime CachedAt);
+
+public record LeaderboardEntryResponse(
+    int Rank, string RatId, string RatName, string OwnerPlayerId, string OwnerUsername,
+    string? OwnerTitle, double Score, int EntryCount);
+
+public record RatEventHistoryResponse(
+    string RatId, string RatName, int TotalCount, int Page, int PageSize,
+    RatEventHistoryEntryResponse[] Results);
+
+public record RatEventHistoryEntryResponse(
+    string LobbyId, string EventDefinitionId, string EventType, int Rank, int Score,
+    int EntryCount, DateTime ScoredAt, EntrySnapshotResponse? Snapshot);
+
+public record EntrySnapshotResponse(
+    double SprintAbility, double AgilityAbility, double EnduranceAbility,
+    string DietQuality, string HealthState, double VitalityScore);
 
 public record TutorialEventResponse(TutorialEventResult? Event, decimal NewCurrencyBalance);
 public record TutorialEventResult(string EventName, string EventType, DateTime CompletedAt, TutorialEventEntry[] Entries, int CurrencyAwarded);
