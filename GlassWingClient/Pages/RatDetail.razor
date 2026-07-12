@@ -90,7 +90,7 @@ else
     <div class="row g-3 mb-3">
 
         @* Ability *@
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-3 text-muted">Ability</h6>
@@ -113,7 +113,7 @@ else
         </div>
 
         @* Health *@
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-3 text-muted">Health</h6>
@@ -212,6 +212,28 @@ else
             </div>
         </div>
 
+        @* Personality *@
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Personality</h6>
+                    @if (rat.Traits is { Length: > 0 })
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var trait in rat.Traits)
+                            {
+                                <span class="badge bg-secondary" title="@TraitDescription(trait)">@trait</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="text-muted small">No notable traits</span>
+                    }
+                </div>
+            </div>
+        </div>
+
     </div>
 
     @* Appearance *@
@@ -255,8 +277,12 @@ else
                             @if (coat.IsDownunderHomozygous) { <span class="badge bg-secondary">Downunder (HZ)</span> }
                             @if (coat.Silvering == "Light")  { <span class="badge bg-secondary">Light Silvering</span> }
                             @if (coat.Silvering == "Heavy")  { <span class="badge bg-secondary">Heavy Silvering</span> }
-                            @if (!coat.HasBlaze && !coat.IsRoan && !coat.IsDownunder
-                                 && coat.Silvering is null or "None")
+                            @if (coat.Pearl == "Light")      { <span class="badge bg-secondary">Light Pearl</span> }
+                            @if (coat.Pearl == "Heavy")      { <span class="badge bg-secondary">Heavy Pearl</span> }
+                            @if (coat.HasWhiteFeet)          { <span class="badge bg-secondary">White Feet</span> }
+                            @if (coat.IsHuskyCarrier)        { <span class="badge bg-secondary">Husky Carrier@(coat.IsBandedHusky ? " (Banded)" : "")</span> }
+                            @if (!coat.HasBlaze && !coat.IsRoan && !coat.IsDownunder && !coat.HasWhiteFeet && !coat.IsHuskyCarrier
+                                 && coat.Silvering is null or "None" && coat.Pearl is null or "None")
                             {
                                 <span class="text-muted small">None</span>
                             }
@@ -1075,6 +1101,29 @@ else
                 </div>
             }
         </div>
+    };
+
+    static string TraitDescription(string trait) => trait switch
+    {
+        "Fussy"        => "Picky about food quality.",
+        "Overweight"   => "Carrying extra weight.",
+        "Bold"         => "Fearless and quick to try new things. Slightly boosts event scores. Fixed from birth.",
+        "Shy"          => "Cautious and easily startled. Slightly hurts event scores. Fixed from birth.",
+        "Curious"      => "Investigates its surroundings eagerly. Slightly speeds up training. Fixed from birth.",
+        "Lazy"         => "Hasn't been engaged in play recently. Slightly slows training.",
+        "Playful"      => "Consistently engaged in play lately. Slightly speeds up training.",
+        "Affectionate" => "Deeply bonded with its owner. Slightly speeds up further bonding gains.",
+        "Foodie"       => "Motivated by treats. Slightly speeds up training. Fixed from birth.",
+        "Gregarious"   => "Highly social with other rats. Slightly speeds up bonding gains. Fixed from birth.",
+        "Independent"  => "Confident but doesn't seek out attention. Slightly boosts event scores. Fixed from birth.",
+        "Popcorn"      => "Energetic and athletic. Slightly boosts event scores. Fixed from birth.",
+        "Sleepy"       => "Low energy. Slightly hurts event scores. Fixed from birth.",
+        "Homebody"     => "Calm in familiar surroundings. Slightly slows stress buildup. Fixed from birth.",
+        "Driven"       => "Motivated to improve. Slightly speeds up training. Fixed from birth.",
+        "Snappy"       => "On edge from recent stress. Slightly speeds up further stress buildup.",
+        "DevotedMother" => "Earned through raising many litters. Slightly speeds up bonding gains. Permanent.",
+        "Troublemaker" => "Prone to mischief around cage items. Permanent.",
+        _              => trait
     };
 
     static string VitalityBadgeClass(string? vitality) => vitality switch

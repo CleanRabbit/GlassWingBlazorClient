@@ -38,7 +38,9 @@ public record RatResponse(
     // Secret rat easter egg (Task 23) — present only on the rename response that freshly
     // claims a transformation; absent (not null) from the JSON on every other response, so its
     // mere presence can't be used to fingerprint claimed rats via schema inspection.
-    string? SecretMessage = null);
+    string? SecretMessage = null,
+    // Personality traits (Tasks 24-26) — flat collection, e.g. ["Fussy", "Bold", "Playful"].
+    string[]? Traits = null);
 
 // --- Tricks (Task 19) ---
 
@@ -136,7 +138,12 @@ public record CoatPhenotype(
     bool IsRoan,
     string? Silvering,
     bool IsDownunder,
-    bool IsDownunderHomozygous);
+    bool IsDownunderHomozygous,
+    // Task 27
+    string? Pearl = null,
+    bool HasWhiteFeet = false,
+    bool IsHuskyCarrier = false,
+    bool IsBandedHusky = false);
 
 public record MorphologyProfile(string? Sex, int BodySize);
 
