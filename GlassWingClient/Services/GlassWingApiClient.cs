@@ -127,6 +127,89 @@ public class GlassWingApiClient(HttpClient http)
         return (body, null);
     }
 
+    // --- Vet Care (Task 21) ---
+
+    public async Task<(VetVisitResponse? Result, string? Error)> VetVisitAsync(string ratId)
+    {
+        var resp = await http.PostAsync($"/api/rats/{ratId}/vet/visit", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<VetVisitResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode switch
+        {
+            402 => "Insufficient funds.",
+            409 => "Nothing to diagnose.",
+            _   => string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body
+        });
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> VetTreatAsync(string ratId, string illnessId)
+    {
+        var resp = await http.PostAsync($"/api/rats/{ratId}/vet/treat/{illnessId}", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode switch
+        {
+            402 => "Insufficient funds.",
+            409 => "Already being treated, or not yet diagnosed.",
+            400 => "This illness has no vet-purchasable treatment.",
+            _   => string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body
+        });
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> VetDoseAsync(string ratId, string illnessId)
+    {
+        var resp = await http.PostAsync($"/api/rats/{ratId}/vet/dose/{illnessId}", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode switch
+        {
+            409 => "Course already complete, or already dosed today.",
+            400 => "Not a course treatment.",
+            _   => string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body
+        });
+    }
+
+    // --- OTC Medication (Task 22) ---
+
+    public async Task<(MedicationDevicePurchaseResponse? Result, string? Error)> BuyMedicationDeviceAsync(string medicationTypeId, int anchorIndex)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/medication-device", new { medicationTypeId, anchorIndex }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<MedicationDevicePurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(InventoryPurchaseResponse? Result, string? Error)> BuyMedicationDoseAsync(string medicationTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/medication-dose", new { medicationTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<InventoryPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> UseOtcMedicationDeviceAsync(string ratId, string medicationId)
+    {
+        var resp = await http.PostAsync($"/api/rats/{ratId}/otc-medication/use/{medicationId}", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 409 ? "On cooldown, or device not installed." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> AdministerOtcDirectDoseAsync(string ratId, string storedItemId)
+    {
+        var resp = await http.PostAsync($"/api/rats/{ratId}/otc-medication/administer/{storedItemId}", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 409 ? "On cooldown, or item unavailable." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     // --- Tricks (Task 19) ---
 
     public async Task<TrickCatalogueResponse?> GetTrickCatalogueAsync()

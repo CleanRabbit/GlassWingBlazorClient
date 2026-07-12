@@ -89,6 +89,22 @@ else
         }
     }
 
+    @if (home!.VetTreatmentNotifications is { Length: > 0 })
+    {
+        @for (int i = 0; i < home.VetTreatmentNotifications.Length; i++)
+        {
+            var idx = i;
+            if (!dismissedVetNotifications.Contains(idx))
+            {
+                <div class="alert alert-success alert-dismissible mb-2 py-2" role="alert">
+                    🩺 @home.VetTreatmentNotifications[idx]
+                    <button type="button" class="btn-close" aria-label="Dismiss"
+                            @onclick="() => dismissedVetNotifications.Add(idx)"></button>
+                </div>
+            }
+        }
+    }
+
     @if (home!.SeasonalEvent is { Active: true } se)
     {
         <div class="alert alert-primary d-flex justify-content-between align-items-center mb-2 py-2">
@@ -528,6 +544,7 @@ else
     readonly Dictionary<string, string?> accessoryErrors = [];
     readonly HashSet<int> dismissedAutoFills = [];
     readonly HashSet<int> dismissedLifeStageNotifications = [];
+    readonly HashSet<int> dismissedVetNotifications = [];
     bool dailyRewardBusy;
     CosmeticEntry[] ownedCageDecorations = [];
     readonly HashSet<string> cosmeticBusy = [];

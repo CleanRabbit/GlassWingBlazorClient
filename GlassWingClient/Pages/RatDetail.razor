@@ -128,23 +128,75 @@ else
                                 <tr><th>Length</th><td>@h.BodyLengthCm.ToString("F1")cm</td></tr>
                             </tbody>
                         </table>
+
+                        @if (h.ActiveIllnesses?.Any(i => !i.IsDiagnosed) == true)
+                        {
+                            <div class="alert alert-warning d-flex justify-content-between align-items-center py-2 mb-2 small">
+                                <span>Undiagnosed illness detected.</span>
+                                <button class="btn btn-sm btn-primary" @onclick="VetVisitAsync" disabled="@vetBusy">
+                                    @(vetBusy ? "..." : $"Take to vet ({settings?.VetDiagnosisFee ?? 15} cr)")
+                                </button>
+                            </div>
+                        }
+                        @if (vetMessage is not null)
+                        {
+                            <div class="alert @(vetSuccess ? "alert-success" : "alert-danger") py-2 mb-2 small">@vetMessage</div>
+                        }
+
+                        @if (rat.OtcProtections is { Length: > 0 } protections)
+                        {
+                            <div class="mb-2">
+                                @foreach (var p in protections)
+                                {
+                                    <div class="small text-success">
+                                        🌿 @p.Category protection active (×@p.Factor.ToString("F1")) — expires @p.ExpiresAt.ToLocalTime().ToString("dd MMM HH:mm")
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        var devices = home?.MedicationDevices ?? [];
+                        var doseGroups = (home?.StorageDrawers ?? []).SelectMany(d => d.Items)
+                            .Where(i => i.Kind == "Medication")
+                            .GroupBy(i => i.TypeId)
+                            .ToArray();
+                        @if (devices.Length > 0 || doseGroups.Length > 0)
+                        {
+                            <div class="mb-2 d-flex flex-wrap gap-1">
+                                @foreach (var dev in devices)
+                                {
+                                    var med = catalogue?.Medications?.FirstOrDefault(m => m.Id == dev.TypeId);
+                                    var onCooldown = IsOnCooldown(dev.TypeId);
+                                    <button class="btn btn-sm btn-outline-success"
+                                            disabled="@(onCooldown || otcBusy)"
+                                            @onclick="() => UseDeviceAsync(dev.TypeId)">
+                                        @(onCooldown ? $"{med?.Name ?? dev.TypeId} — {FormatCountdown(CooldownUntil(dev.TypeId)!.Value)}" : $"Use {med?.Name ?? dev.TypeId}")
+                                    </button>
+                                }
+                                @foreach (var group in doseGroups)
+                                {
+                                    var med = catalogue?.Medications?.FirstOrDefault(m => m.Id == group.Key);
+                                    var onCooldown = IsOnCooldown(group.Key);
+                                    var firstItemId = group.First().Id;
+                                    <button class="btn btn-sm btn-outline-success"
+                                            disabled="@(onCooldown || otcBusy)"
+                                            @onclick="() => AdministerDoseAsync(firstItemId)">
+                                        @(onCooldown ? $"{med?.Name ?? group.Key} — {FormatCountdown(CooldownUntil(group.Key)!.Value)}" : $"Administer {med?.Name ?? group.Key} (×{group.Count()})")
+                                    </button>
+                                }
+                            </div>
+                        }
+                        @if (otcMessage is not null)
+                        {
+                            <div class="alert alert-warning py-2 mb-2 small">@otcMessage</div>
+                        }
+
                         @if (h.ActiveIllnesses is { Length: > 0 })
                         {
                             <h6 class="text-danger mb-2">Active Illnesses</h6>
                             @foreach (var illness in h.ActiveIllnesses)
                             {
-                                <div class="border border-danger rounded p-2 mb-2 small">
-                                    <div class="fw-bold">@illness.IllnessId</div>
-                                    <div class="text-muted">Since @illness.StartedAt.ToString("dd MMM yyyy")</div>
-                                    @if (illness.TreatmentApplied)
-                                    {
-                                        <span class="badge bg-success mt-1">Treatment applied</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-warning text-dark mt-1">Untreated</span>
-                                    }
-                                </div>
+                                @IllnessCard(illness)
                             }
                         }
                         else
@@ -524,11 +576,31 @@ else
     DateTime? playSessionStartedAt;
     System.Threading.Timer? playTimer;
 
+    // Vet care (Task 21)
+    HomeResponse? home;
+    ShopCatalogueResponse? catalogue;
+    bool vetBusy;
+    string? vetMessage;
+    bool vetSuccess;
+    readonly HashSet<string> vetActionBusy = [];
+
+    // OTC medication (Task 22)
+    bool otcBusy;
+    string? otcMessage;
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync(), LoadMaleRatsAsync(), LoadCosmeticsAsync(), LoadTrickCatalogueAsync());
+        await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync(), LoadMaleRatsAsync(), LoadCosmeticsAsync(), LoadTrickCatalogueAsync(), LoadHomeAsync(), LoadShopCatalogueAsync());
     }
+
+    async Task LoadHomeAsync()
+    {
+        var (data, _) = await Api.GetHomeAsync();
+        home = data;
+    }
+
+    async Task LoadShopCatalogueAsync() => catalogue = await Api.GetShopCatalogueAsync();
 
     async Task LoadCosmeticsAsync()
     {
@@ -804,6 +876,194 @@ else
         }
         listingBusy = false;
     }
+
+    async Task VetVisitAsync()
+    {
+        vetBusy = true;
+        vetMessage = null;
+        var (result, error) = await Api.VetVisitAsync(Id);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            vetSuccess = true;
+            vetMessage = result.Diagnoses.Length == 1
+                ? $"Diagnosed: {result.Diagnoses[0].Name}."
+                : $"Diagnosed {result.Diagnoses.Length} illnesses: {string.Join(", ", result.Diagnoses.Select(d => d.Name))}.";
+            await LoadRatAsync();
+        }
+        else
+        {
+            vetSuccess = false;
+            vetMessage = error ?? "Failed to visit the vet.";
+        }
+        vetBusy = false;
+    }
+
+    async Task TreatAsync(string illnessId)
+    {
+        vetActionBusy.Add(illnessId);
+        vetMessage = null;
+        var (updated, error) = await Api.VetTreatAsync(Id, illnessId);
+        if (updated is not null)
+        {
+            rat = updated;
+        }
+        else
+        {
+            vetSuccess = false;
+            vetMessage = error ?? "Failed to start treatment.";
+        }
+        vetActionBusy.Remove(illnessId);
+    }
+
+    async Task DoseAsync(string illnessId)
+    {
+        vetActionBusy.Add(illnessId);
+        vetMessage = null;
+        var illnessBefore = rat?.HealthState?.ActiveIllnesses?.FirstOrDefault(i => i.IllnessId == illnessId);
+        var (updated, error) = await Api.VetDoseAsync(Id, illnessId);
+        if (updated is not null)
+        {
+            var stillPresent = updated.HealthState?.ActiveIllnesses?.Any(i => i.IllnessId == illnessId) == true;
+            rat = updated;
+            if (!stillPresent && illnessBefore is not null)
+            {
+                vetSuccess = true;
+                vetMessage = $"{rat.Name} has recovered from {illnessBefore.Name}.";
+            }
+        }
+        else
+        {
+            vetSuccess = false;
+            vetMessage = error ?? "Failed to administer dose.";
+        }
+        vetActionBusy.Remove(illnessId);
+    }
+
+    static int CoursePct(ActiveIllness illness) =>
+        illness.DoseCount is > 0 ? (int)Math.Min(100, (illness.DosesAdministered ?? 0) * 100.0 / illness.DoseCount.Value) : 0;
+
+    bool IsOnCooldown(string medicationId) =>
+        rat?.OtcMedicationCooldowns?.Any(c => c.MedicationId == medicationId && c.AvailableAt > DateTime.UtcNow) == true;
+
+    DateTime? CooldownUntil(string medicationId) =>
+        rat?.OtcMedicationCooldowns?.FirstOrDefault(c => c.MedicationId == medicationId)?.AvailableAt;
+
+    static string FormatCountdown(DateTime until)
+    {
+        var remaining = until - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero) return "Ready";
+        return remaining.TotalHours >= 1
+            ? $"Ready in {(int)remaining.TotalHours}h {remaining.Minutes}m"
+            : $"Ready in {remaining.Minutes}m";
+    }
+
+    async Task UseDeviceAsync(string medicationId)
+    {
+        otcBusy = true;
+        otcMessage = null;
+        var (updated, error) = await Api.UseOtcMedicationDeviceAsync(Id, medicationId);
+        if (updated is not null) rat = updated;
+        else otcMessage = error ?? "Failed to use device.";
+        otcBusy = false;
+    }
+
+    async Task AdministerDoseAsync(string storedItemId)
+    {
+        otcBusy = true;
+        otcMessage = null;
+        var (updated, error) = await Api.AdministerOtcDirectDoseAsync(Id, storedItemId);
+        if (updated is not null)
+        {
+            rat = updated;
+            await LoadHomeAsync(); // the item is consumed — refresh drawer stock
+        }
+        else
+        {
+            otcMessage = error ?? "Failed to administer dose.";
+        }
+        otcBusy = false;
+    }
+
+    RenderFragment IllnessCard(ActiveIllness illness) => __builder =>
+    {
+        var hasVetZone = illness.IsDiagnosed;
+        var hasOtcZone = illness.OtcCureProgress > 0 || illness.OtcCriticalBufferHours > 0;
+
+        <div class="border rounded p-2 mb-2 small">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="fw-bold">@(illness.IsDiagnosed ? illness.Name : "Unknown illness")</div>
+                    <div class="text-muted">Unwell since @illness.StartedAt.ToString("dd MMM yyyy")</div>
+                </div>
+                @if (illness.IsDiagnosed && illness.Category is not null)
+                {
+                    <span class="badge bg-secondary">@illness.Category</span>
+                }
+            </div>
+
+            @if (hasVetZone)
+            {
+                <hr class="my-2" />
+                <div>
+                    <span class="text-primary fw-semibold">🩺 Vet:</span>
+                    @if (!illness.TreatmentApplied)
+                    {
+                        if (illness.TreatmentType == "None")
+                        {
+                            <span class="text-muted">No vet-purchasable treatment for this illness.</span>
+                        }
+                        else
+                        {
+                            <span>@illness.TreatmentType treatment available</span>
+                            <button class="btn btn-sm btn-outline-primary ms-2"
+                                    disabled="@vetActionBusy.Contains(illness.IllnessId!)"
+                                    @onclick="() => TreatAsync(illness.IllnessId!)">
+                                Treat
+                            </button>
+                        }
+                    }
+                    else if (illness.TreatmentType == "Course")
+                    {
+                        <div>Dose @illness.DosesAdministered / @illness.DoseCount</div>
+                        <div class="progress mb-1" style="height:6px">
+                            <div class="progress-bar bg-primary" style="width:@(CoursePct(illness))%"></div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary"
+                                disabled="@(!illness.CanDoseToday.GetValueOrDefault() || vetActionBusy.Contains(illness.IllnessId!))"
+                                @onclick="() => DoseAsync(illness.IllnessId!)">
+                            Give today's dose
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="text-muted">
+                            Recovering@(illness.TreatmentRecoveryHours is { } h ? $" — ready in ~{h:F0}h" : "…")
+                        </span>
+                    }
+                </div>
+            }
+
+            @if (hasOtcZone)
+            {
+                <hr class="my-2" />
+                <div>
+                    <span class="text-success fw-semibold">🌿 OTC:</span>
+                    @if (illness.OtcCureProgress > 0)
+                    {
+                        <div>Cure progress</div>
+                        <div class="progress mb-1" style="height:6px">
+                            <div class="progress-bar bg-success" style="width:@(illness.OtcCureProgress.ToString("F0"))%"></div>
+                        </div>
+                    }
+                    @if (illness.OtcCriticalBufferHours > 0)
+                    {
+                        <div class="text-muted">Critical buffer: +@illness.OtcCriticalBufferHours.ToString("F0")h</div>
+                    }
+                </div>
+            }
+        </div>
+    };
 
     static string VitalityBadgeClass(string? vitality) => vitality switch
     {

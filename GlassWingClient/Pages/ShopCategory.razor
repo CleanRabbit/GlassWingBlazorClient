@@ -273,97 +273,86 @@ else
         {
             @foreach (var item in catalogue.Foods)
             {
-                <div class="col-md-6 col-xl-4">
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">@item.Name</h5>
-                            <p class="small mb-1">
-                                <span class="text-muted">Quality tier</span> @item.QualityTier
-                            </p>
-                            @if (item.HealthBonus is { } hb && hb > 0)
-                            {
-                                <p class="small mb-1">
-                                    <span class="text-muted">Health bonus</span>
-                                    <span class="text-success">+@(hb.ToString("P0"))</span>
-                                </p>
-                            }
-                            <p class="small mb-2">
-                                <strong>@item.InGamePrice cr</strong>
-                                <span class="text-muted">/ rat-day</span>
-                            </p>
+                @FoodCard(item)
+            }
+        }
+        else if (Category == "medications")
+        {
+            var devices      = (catalogue.Medications ?? []).Where(m => m.DeliveryType == "HomeAccessoryDevice").ToArray();
+            var directDoses  = (catalogue.Medications ?? []).Where(m => m.DeliveryType == "DirectDose").ToArray();
+            var medicatedFoods = catalogue.Foods.Where(f => f.TargetIllnessCategory is not null).ToArray();
+            var occupied   = GetOccupiedSlots();
+            var totalSlots = home?.TotalAccessorySlots ?? 0;
+            var hasSpace   = totalSlots > occupied.Count;
 
-                            @if (foodBuyPanelId == item.Id)
-                            {
-                                <div class="border rounded p-2 mb-2 bg-light">
-                                    @if (home is null)
+            <h5 class="mb-3">Devices</h5>
+            <div class="row g-3 mb-4">
+                @foreach (var item in devices)
+                {
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">@item.Name</h5>
+                                <p class="text-muted small mb-2">@item.Description</p>
+                                <p class="small mb-2">
+                                    <span class="text-muted">Targets</span> @item.TargetCategory ·
+                                    <span class="text-muted">Cooldown</span> @item.UseCooldownHours h
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center mt-auto">
+                                    <strong>@item.InGamePrice cr</strong>
+                                    @if (anchorPanelItemId != item.Id)
                                     {
-                                        <p class="text-muted small mb-0">Loading storage bins...</p>
-                                    }
-                                    else
-                                    {
-                                        var bins = home.FoodStorageBins ?? [];
-                                        @if (bins.Length == 0)
-                                        {
-                                            <p class="text-muted small mb-1">No food storage bins. Buy one from <a href="/shop/food-bins">Food Storage</a>.</p>
-                                            <button class="btn btn-sm btn-outline-secondary"
-                                                    @onclick="() => foodBuyPanelId = null">
-                                                Cancel
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <div class="mb-2">
-                                                <label class="form-label small">Storage bin</label>
-                                                <select class="form-select form-select-sm" @bind="selectedBinId">
-                                                    <option value="">— select —</option>
-                                                    @foreach (var bin in bins)
-                                                    {
-                                                        <option value="@bin.Id">
-                                                            Food Storage Bin (@bin.StoredRatDays.ToString("F0") / @bin.CapacityRatDays rd used)
-                                                        </option>
-                                                    }
-                                                </select>
-                                            </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small">Rat-days to buy</label>
-                                                <input class="form-control form-control-sm" type="number" min="1"
-                                                       @bind="foodRatDays" />
-                                                @if (foodRatDays > 0)
-                                                {
-                                                    <div class="text-muted small mt-1">
-                                                        Total: @(foodRatDays * item.InGamePrice) cr
-                                                    </div>
-                                                }
-                                            </div>
-                                            <div class="d-flex gap-2">
-                                                <button class="btn btn-sm btn-primary"
-                                                        @onclick="() => ConfirmBuyFoodAsync(item.Id)"
-                                                        disabled="@(busy || string.IsNullOrEmpty(selectedBinId) || foodRatDays < 1)">
-                                                    Confirm
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-secondary"
-                                                        @onclick="() => foodBuyPanelId = null">
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        }
+                                        <button class="btn btn-sm btn-primary"
+                                                @onclick='() => OpenAnchorPanel(item.Id, item.Name, item.InGamePrice, "medication-device")'
+                                                disabled="@(busy || (home is not null && !hasSpace))"
+                                                title="@(home is not null && !hasSpace ? "No free home slots" : null)">
+                                            Buy
+                                        </button>
                                     }
                                 </div>
-                            }
-                            else
-                            {
-                                <div class="mt-auto">
-                                    <button class="btn btn-sm btn-primary"
-                                            @onclick="() => OpenFoodBuyPanelAsync(item.Id)"
-                                            disabled="@busy">
-                                        Buy
-                                    </button>
-                                </div>
-                            }
+                                @if (anchorPanelItemId == item.Id)
+                                {
+                                    @AnchorPanel(occupied, totalSlots)
+                                }
+                            </div>
                         </div>
                     </div>
-                </div>
-            }
+                }
+            </div>
+
+            <h5 class="mb-3">Direct Doses</h5>
+            <div class="row g-3 mb-4">
+                @foreach (var item in directDoses)
+                {
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">@item.Name</h5>
+                                <p class="text-muted small mb-2">@item.Description</p>
+                                <p class="small mb-2">
+                                    <span class="text-muted">Targets</span> @item.TargetCategory
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center mt-auto">
+                                    <strong>@item.InGamePrice cr</strong>
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => BuyMedicationDoseAsync(item.Id, item.Name)"
+                                            disabled="@busy">
+                                        Buy → Drawer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <h5 class="mb-3">Medicated Food</h5>
+            <div class="row g-3">
+                @foreach (var item in medicatedFoods)
+                {
+                    @FoodCard(item)
+                }
+            </div>
         }
 
     </div>
@@ -401,6 +390,7 @@ else
         "storage-drawers"  => "Storage Drawers",
         "food-bins"        => "Food Storage",
         "food"             => "Food",
+        "medications"      => "Medications",
         _                  => "Shop"
     };
 
@@ -409,7 +399,7 @@ else
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         var catalogueTask = Api.GetShopCatalogueAsync();
         Task<(HomeResponse?, string?)>? homeTask = null;
-        if (Category is "carry-cases" or "storage-drawers" or "food-bins" or "food")
+        if (Category is "carry-cases" or "storage-drawers" or "food-bins" or "food" or "medications")
             homeTask = Api.GetHomeAsync();
         catalogue = await catalogueTask;
         if (homeTask is not null)
@@ -476,12 +466,12 @@ else
         _                 => "food-bin"
     };
 
-    void OpenAnchorPanel(string itemId, string name, int price)
+    void OpenAnchorPanel(string itemId, string name, int price, string? categoryOverride = null)
     {
         anchorPanelItemId = itemId;
         anchorPanelName = name;
         anchorPanelPrice = price;
-        anchorPanelCategory = AnchorCategory;
+        anchorPanelCategory = categoryOverride ?? AnchorCategory;
         selectedAnchorIndex = null;
         error = null;
         success = null;
@@ -500,6 +490,7 @@ else
         foreach (var cc in home.CarryCases ?? []) set.Add(cc.AnchorIndex);
         foreach (var sd in home.StorageDrawers ?? []) set.Add(sd.AnchorIndex);
         foreach (var fb in home.FoodStorageBins ?? []) set.Add(fb.AnchorIndex);
+        foreach (var md in home.MedicationDevices ?? []) set.Add(md.AnchorIndex);
         return set;
     }
 
@@ -522,6 +513,12 @@ else
             if (result is null) { error = err; busy = false; return; }
             newBalance = result.NewBalance;
         }
+        else if (anchorPanelCategory == "medication-device")
+        {
+            var (result, err) = await Api.BuyMedicationDeviceAsync(anchorPanelItemId!, anchorIndex);
+            if (result is null) { error = err; busy = false; return; }
+            newBalance = result.NewBalance;
+        }
         else
         {
             var (result, err) = await Api.BuyFoodStorageBinAsync(anchorIndex);
@@ -536,6 +533,119 @@ else
         if (homeData is not null) home = homeData;
         busy = false;
     }
+
+    async Task BuyMedicationDoseAsync(string typeId, string name)
+    {
+        busy = true; error = null; success = null;
+        var (result, err) = await Api.BuyMedicationDoseAsync(typeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            success = $"{name} added to your storage drawers. New balance: {result.NewBalance:N0} cr";
+        }
+        else error = err;
+        busy = false;
+    }
+
+    RenderFragment FoodCard(ShopFoodType item) => __builder =>
+    {
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <h5 class="card-title mb-0">@item.Name</h5>
+                        @if (item.TargetIllnessCategory is not null)
+                        {
+                            <span class="badge bg-info text-dark">Medicinal — @item.TargetIllnessCategory</span>
+                        }
+                    </div>
+                    <p class="small mb-1">
+                        <span class="text-muted">Quality tier</span> @item.QualityTier
+                    </p>
+                    @if (item.HealthBonus is { } hb && hb > 0)
+                    {
+                        <p class="small mb-1">
+                            <span class="text-muted">Health bonus</span>
+                            <span class="text-success">+@(hb.ToString("P0"))</span>
+                        </p>
+                    }
+                    <p class="small mb-2">
+                        <strong>@item.InGamePrice cr</strong>
+                        <span class="text-muted">/ rat-day</span>
+                    </p>
+
+                    @if (foodBuyPanelId == item.Id)
+                    {
+                        <div class="border rounded p-2 mb-2 bg-light">
+                            @if (home is null)
+                            {
+                                <p class="text-muted small mb-0">Loading storage bins...</p>
+                            }
+                            else
+                            {
+                                var bins = home.FoodStorageBins ?? [];
+                                @if (bins.Length == 0)
+                                {
+                                    <p class="text-muted small mb-1">No food storage bins. Buy one from <a href="/shop/food-bins">Food Storage</a>.</p>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => foodBuyPanelId = null">
+                                        Cancel
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="mb-2">
+                                        <label class="form-label small">Storage bin</label>
+                                        <select class="form-select form-select-sm" @bind="selectedBinId">
+                                            <option value="">— select —</option>
+                                            @foreach (var bin in bins)
+                                            {
+                                                <option value="@bin.Id">
+                                                    Food Storage Bin (@bin.StoredRatDays.ToString("F0") / @bin.CapacityRatDays rd used)
+                                                </option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small">Rat-days to buy</label>
+                                        <input class="form-control form-control-sm" type="number" min="1"
+                                               @bind="foodRatDays" />
+                                        @if (foodRatDays > 0)
+                                        {
+                                            <div class="text-muted small mt-1">
+                                                Total: @(foodRatDays * item.InGamePrice) cr
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary"
+                                                @onclick="() => ConfirmBuyFoodAsync(item.Id)"
+                                                disabled="@(busy || string.IsNullOrEmpty(selectedBinId) || foodRatDays < 1)">
+                                            Confirm
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => foodBuyPanelId = null">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mt-auto">
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick="() => OpenFoodBuyPanelAsync(item.Id)"
+                                    disabled="@busy">
+                                Buy
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    };
 
     async Task OpenFoodBuyPanelAsync(string foodTypeId)
     {

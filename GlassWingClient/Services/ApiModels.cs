@@ -32,7 +32,9 @@ public record RatResponse(
     string? ActiveCosmeticId = null,
     TrickTrainingStateDto? CurrentTrickTraining = null,
     BondingInfo? Bonding = null,
-    PlaySessionInfo? PlaySession = null);
+    PlaySessionInfo? PlaySession = null,
+    OtcProtectionInfo[]? OtcProtections = null,
+    OtcMedicationCooldownInfo[]? OtcMedicationCooldowns = null);
 
 // --- Tricks (Task 19) ---
 
@@ -83,11 +85,36 @@ public record HealthState(
     double BodyLengthCm,
     ActiveIllness[]? ActiveIllnesses);
 
+// Diagnosis-gated (Task 21): IllnessId/Name/Category are null until IsDiagnosed flips true.
+// OtcCureProgress/OtcCriticalBufferHours (Task 22) are independent of vet state and populated
+// regardless of diagnosis.
 public record ActiveIllness(
-    string IllnessId,
+    bool IsDiagnosed,
+    string? IllnessId,
+    string? Name,
+    string? Category,
     DateTime StartedAt,
     bool TreatmentApplied,
-    DateTime? TreatedAt);
+    string? TreatmentType = null,
+    int? DosesAdministered = null,
+    int? DoseCount = null,
+    bool? CanDoseToday = null,
+    double OtcCureProgress = 0,
+    double OtcCriticalBufferHours = 0,
+    double? TreatmentRecoveryHours = null);
+
+// --- Vet Care (Task 21) ---
+
+public record VetVisitResponse(VetDiagnosisEntry[] Diagnoses, decimal NewBalance);
+public record VetDiagnosisEntry(
+    string IllnessId, string Name, string Category, DateTime StartedAt,
+    string TreatmentType, int TreatmentCost, int? DoseCount, string? Recommendation,
+    double? TreatmentRecoveryHours);
+
+// --- OTC Medication (Task 22) ---
+
+public record OtcProtectionInfo(string Category, DateTime ExpiresAt, double Factor);
+public record OtcMedicationCooldownInfo(string MedicationId, DateTime AvailableAt);
 
 // --- Phenotype (appearance) ---
 
@@ -128,7 +155,13 @@ public record HomeResponse(
     AchievementsHomeSummary? Achievements = null,
     DailyRewardInfo? DailyReward = null,
     ChallengesSummaryInfo? Challenges = null,
-    SeasonalEventSummaryInfo? SeasonalEvent = null);
+    SeasonalEventSummaryInfo? SeasonalEvent = null,
+    string[]? VetTreatmentNotifications = null,
+    HomeMedicationDeviceInfo[]? MedicationDevices = null);
+
+// --- Vet/OTC home extras ---
+
+public record HomeMedicationDeviceInfo(string Id, string TypeId, int AnchorIndex, double Cleanliness, double Condition);
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
@@ -265,7 +298,8 @@ public record GameSettingsResponse(
     int? TrickMaxRoutineSize = null,
     int? SocialLearningAptitudeThreshold = null,
     int? MaxPlaySessionSeconds = null,
-    double? MaxActiveProgressPerRatPerDay = null);
+    double? MaxActiveProgressPerRatPerDay = null,
+    int? VetDiagnosisFee = null);
 
 // --- Home extras ---
 
@@ -298,14 +332,25 @@ public record ShopCatalogueResponse(
     ShopFoodStorageBinType[] FoodStorageBins,
     ShopFoodType[] Foods,
     ShopCarryCaseType[]? CarryCases = null,
-    ShopStorageDrawersType[]? StorageDrawers = null);
+    ShopStorageDrawersType[]? StorageDrawers = null,
+    ShopMedicationType[]? Medications = null);
+
+// Delivery: "HomeAccessoryDevice" | "DirectDose". The /api/shop endpoint serializes the
+// domain MedicationType record directly (no DTO mapping), so property names match verbatim.
+public record ShopMedicationType(
+    string Id, string Name, string Description, string DeliveryType, string TargetCategory,
+    int InGamePrice, double UseCooldownHours, double PreventionWindowHours, double PreventionFactor,
+    double CriticalBufferPerUseHours, double MaxCriticalBufferHours, double CureProgressPerUse,
+    double SideEffectStressHoursPerUse);
+
+public record MedicationDevicePurchaseResponse(string DeviceId, string TypeId, int AnchorIndex, decimal NewBalance);
 
 public record ShopCageType(string Id, string Brand, string ModelName, string? Tier, int WidthCm, int DepthCm, int HeightCm, int MaxCapacity, int MaxFoodBowlSlots, int MaxWaterBottleSlots, int Price);
 public record ShopAccessoryType(string Id, string Name, string? Description, int BaseEnrichment, string? MinimumTier, int Price);
 public record ShopFoodBowlType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
 public record ShopWaterBottleType(string Id, string Name, int CapacityRatDays, string? MinimumTier, int Price);
 public record ShopFoodStorageBinType(string Id, string Name, int CapacityRatDays, int Price);
-public record ShopFoodType(string Id, string Name, int QualityTier, int InGamePrice, double? HealthBonus);
+public record ShopFoodType(string Id, string Name, int QualityTier, int InGamePrice, double? HealthBonus, string? TargetIllnessCategory = null);
 public record ShopCarryCaseType(string Id, string Name, int Price);
 public record ShopStorageDrawersType(string Id, string Name, int SlotsPerUnit, int Price);
 

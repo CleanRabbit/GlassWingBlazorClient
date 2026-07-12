@@ -133,11 +133,18 @@ else
                                             <span class="small fw-semibold">@KindLabel(item.Kind)</span>
                                             <span class="badge bg-light text-dark border ms-1 small">@item.TypeId</span>
                                         </div>
-                                        <button class="btn btn-sm btn-outline-primary"
-                                                disabled="@(busy || (activePanelId == item.Id && !panelIsCarryCase))"
-                                                @onclick="() => OpenDrawerItemPanel(item.Id, item.Kind)">
-                                            Install
-                                        </button>
+                                        @if (item.Kind == "Medication")
+                                        {
+                                            <span class="text-muted small">Administer from a rat's Health page</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    disabled="@(busy || (activePanelId == item.Id && !panelIsCarryCase))"
+                                                    @onclick="() => OpenDrawerItemPanel(item.Id, item.Kind)">
+                                                Install
+                                            </button>
+                                        }
                                     </div>
                                     @if (activePanelId == item.Id && !panelIsCarryCase)
                                     {
@@ -170,6 +177,32 @@ else
                                     }
                                 }
                             }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Medication Devices -->
+    <h4 class="mb-3">Medication Devices</h4>
+    @if ((home.MedicationDevices ?? []).Length == 0)
+    {
+        <p class="text-muted small mb-4">No medication devices. <a href="/shop/medications">Buy one from the shop</a>.</p>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            @foreach (var dev in home.MedicationDevices ?? [])
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-header py-2">
+                            <span class="fw-semibold">Medication Device</span>
+                        </div>
+                        <div class="card-body">
+                            <span class="badge bg-light text-dark border small">@dev.TypeId</span>
+                            <p class="text-muted small mb-0 mt-2">Use from a rat's Health page.</p>
                         </div>
                     </div>
                 </div>
@@ -315,6 +348,7 @@ else
         "FoodBowl"    => "Food Bowl",
         "WaterBottle" => "Water Bottle",
         "Accessory"   => "Accessory",
+        "Medication"  => "Medication",
         _             => kind
     };
 }
