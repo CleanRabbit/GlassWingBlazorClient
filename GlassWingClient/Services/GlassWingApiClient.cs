@@ -174,6 +174,25 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
+    // --- Daily Rewards (Task 18c) ---
+
+    public async Task<(ClaimDailyRewardResponse? Result, string? Error)> ClaimDailyRewardAsync()
+    {
+        var resp = await http.PostAsync("/api/daily-reward/claim", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<ClaimDailyRewardResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 409 ? "Already claimed today." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<DailyRewardCalendarResponse?> GetDailyRewardCalendarAsync()
+    {
+        var resp = await http.GetAsync("/api/daily-reward/calendar");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<DailyRewardCalendarResponse>(JsonOpts)
+            : null;
+    }
+
     public async Task<bool> RenameHomeAsync(string name)
     {
         var resp = await http.PatchAsJsonAsync("/api/home/name", new { name }, JsonOpts);

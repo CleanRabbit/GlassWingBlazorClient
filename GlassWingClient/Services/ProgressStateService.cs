@@ -1,9 +1,10 @@
 namespace GlassWingClient.Services;
 
 // Singleton — same pattern as PlayerStateService. Drives the nav "Progress" badge dot and
-// each hub tile's pending-count badge. HasPendingChallenges/HasPendingSeasonalCompletion/
-// DailyRewardAvailable stay false until their HomeResponse fields land (Task 18d/18e/18c
-// client work) — ApplyHomeSnapshot only reads what HomeResponse exposes today.
+// each hub tile's pending-count badge. HasPendingChallenges/HasPendingSeasonalCompletion
+// stay false until their HomeResponse fields land on the client (Task 18d/18e client work,
+// though the backend HomeResponse already exposes Challenges/SeasonalEvent) — ApplyHomeSnapshot
+// only reads what the client-side HomeResponse model exposes today.
 public class ProgressStateService
 {
     public bool HasPendingAchievements { get; private set; }
@@ -19,12 +20,19 @@ public class ProgressStateService
     public void ApplyHomeSnapshot(HomeResponse home)
     {
         HasPendingAchievements = home.Achievements?.HasPendingUnlocks ?? false;
+        DailyRewardAvailable = home.DailyReward?.Available ?? false;
         OnChange?.Invoke();
     }
 
     public void ClearAchievements()
     {
         HasPendingAchievements = false;
+        OnChange?.Invoke();
+    }
+
+    public void ClearDailyReward()
+    {
+        DailyRewardAvailable = false;
         OnChange?.Invoke();
     }
 }

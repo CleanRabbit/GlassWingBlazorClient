@@ -1,0 +1,115 @@
+@page "/progress/daily"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+@inject ProgressStateService ProgressState
+
+<PageTitle>Daily Reward — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Daily Reward</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">Failed to load daily reward calendar.</div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h1 class="mb-0">Daily Reward</h1>
+        @if (!data.ClaimedToday)
+        {
+            <button class="btn btn-success" @onclick="ClaimAsync" disabled="@busy">
+                @(busy ? "..." : "Claim today's reward")
+            </button>
+        }
+        else
+        {
+            <span class="badge bg-secondary">Claimed for today</span>
+        }
+    </div>
+
+    <div class="d-grid gap-2" style="grid-template-columns: repeat(7, 1fr);">
+        @foreach (var entry in data.Entries)
+        {
+            var isCurrent = entry.Day == data.CurrentDay;
+            var isMilestone = entry.Day % 7 == 0 || entry.Day == data.CalendarLength;
+            <div class="card text-center @(entry.Claimed ? "opacity-50" : "") @(isCurrent ? "border-primary border-2" : "") @(isMilestone ? "bg-body-secondary" : "")">
+                <div class="card-body p-2">
+                    <div class="small text-muted">Day @entry.Day</div>
+                    <div class="@(isMilestone ? "fw-bold" : "small")">@FormatReward(entry.Reward)</div>
+                    @if (entry.Claimed)
+                    {
+                        <div class="small text-success">✓</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    bool loaded;
+    bool busy;
+    DailyRewardCalendarResponse? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+        loaded = true;
+    }
+
+    async Task LoadAsync()
+    {
+        data = await Api.GetDailyRewardCalendarAsync();
+    }
+
+    async Task ClaimAsync()
+    {
+        busy = true;
+        var (result, _) = await Api.ClaimDailyRewardAsync();
+        if (result is not null)
+        {
+            // Currency amount is rendered separately via CurrencyAwarded below — don't repeat
+            // it in Detail.
+            var detail = result.Reward.Type == "Currency" ? $"Day {result.Day}" : FormatReward(result.Reward);
+            if (result.CalendarWrapped) detail += " — you completed a full calendar cycle!";
+
+            RewardToasts.Enqueue(new RewardToastItem(
+                RewardToastKind.DailyReward,
+                "Daily Reward Claimed!",
+                detail,
+                result.Reward.Type == "Currency" ? result.Reward.Amount : null));
+
+            if (result.Reward.Type == "Currency")
+            {
+                var profile = await Api.GetPlayerProfileAsync();
+                if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            }
+        }
+
+        ProgressState.ClearDailyReward();
+        await LoadAsync();
+        busy = false;
+    }
+
+    static string FormatReward(DailyRewardEntry reward) => reward.Type switch
+    {
+        "Currency"          => $"+{reward.Amount ?? 0:N0} cr",
+        "AdoptionFeeWaiver" => "Adoption Fee Waiver",
+        "EventEntryWaiver"  => "Event Entry Waiver",
+        "Cosmetic"          => "Cosmetic Unlock",
+        _                   => reward.Type
+    };
+}

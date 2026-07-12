@@ -53,6 +53,18 @@ else
         }
     }
 
+    @if (home!.DailyReward is { Available: true } dr)
+    {
+        <div class="alert alert-success d-flex justify-content-between align-items-center mb-2 py-2">
+            <span>
+                Daily reward ready — <strong>@FormatDailyReward(dr.Reward)</strong> (Day @dr.Day)
+            </span>
+            <button class="btn btn-sm btn-success" @onclick="ClaimDailyRewardAsync" disabled="@dailyRewardBusy">
+                @(dailyRewardBusy ? "..." : "Claim")
+            </button>
+        </div>
+    }
+
     @if (home!.AutoFills is { Length: > 0 })
     {
         @for (int i = 0; i < home.AutoFills.Length; i++)
@@ -478,6 +490,7 @@ else
     readonly Dictionary<string, string?> accessoryErrors = [];
     readonly HashSet<int> dismissedAutoFills = [];
     readonly HashSet<int> dismissedLifeStageNotifications = [];
+    bool dailyRewardBusy;
 
     static string LifeStageBadgeClass(string lifeStage) =>
         lifeStage == "Weening" ? "bg-danger-subtle text-danger-emphasis border border-danger-subtle" : "bg-secondary";
@@ -565,6 +578,46 @@ else
             if (profile is not null) PlayerState.SetCurrency(profile.Currency);
         }
     }
+
+    async Task ClaimDailyRewardAsync()
+    {
+        dailyRewardBusy = true;
+        var (result, _) = await Api.ClaimDailyRewardAsync();
+        if (result is not null)
+        {
+            // Currency amount is rendered separately via CurrencyAwarded below — don't repeat
+            // it in Detail (that duplicated "+N cr" on screen the first time this was wired up).
+            var detail = result.Reward.Type == "Currency" ? $"Day {result.Day}" : FormatDailyReward(result.Reward);
+            if (result.CalendarWrapped) detail += " — you completed a full calendar cycle!";
+
+            RewardToasts.Enqueue(new RewardToastItem(
+                RewardToastKind.DailyReward,
+                "Daily Reward Claimed!",
+                detail,
+                result.Reward.Type == "Currency" ? result.Reward.Amount : null));
+
+            if (result.Reward.Type == "Currency")
+            {
+                var profile = await Api.GetPlayerProfileAsync();
+                if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            }
+        }
+
+        // Whether this succeeded or hit a soft 409 (already claimed, e.g. two open tabs),
+        // just refresh home state — no error UI for this banner per the design doc.
+        var (data, _) = await Api.GetHomeAsync();
+        if (data is not null) { home = data; ProgressState.ApplyHomeSnapshot(home); }
+        dailyRewardBusy = false;
+    }
+
+    static string FormatDailyReward(DailyRewardEntry reward) => reward.Type switch
+    {
+        "Currency"          => $"+{reward.Amount ?? 0:N0} cr",
+        "AdoptionFeeWaiver" => "Adoption Fee Waiver",
+        "EventEntryWaiver"  => "Event Entry Waiver",
+        "Cosmetic"          => "Cosmetic Unlock",
+        _                   => reward.Type
+    };
 
     async Task RetryAsync()
     {

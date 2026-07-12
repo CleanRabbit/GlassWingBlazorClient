@@ -94,7 +94,8 @@ public record HomeResponse(
     AutoFillNotification[]? AutoFills = null,
     LifeStageNotification[]? LifeStageNotifications = null,
     NewAchievementNotice[]? NewAchievements = null,
-    AchievementsHomeSummary? Achievements = null);
+    AchievementsHomeSummary? Achievements = null,
+    DailyRewardInfo? DailyReward = null);
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
@@ -113,6 +114,17 @@ public record AchievementsHomeSummary(bool HasPendingUnlocks);
 
 public record TitlesResponse(string? ActiveTitleId, TitleEntry[] Titles);
 public record TitleEntry(string Id, string DisplayText, string Description, string UnlockSource, bool Unlocked);
+
+// ── Daily Rewards (Task 18c) ────────────────────────────────────────────────────
+
+// Type: "Currency" | "AdoptionFeeWaiver" | "EventEntryWaiver" | "Cosmetic". CosmeticId is
+// only populated on Cosmetic-type entries from the Calendar/Claim endpoints — the Home
+// summary's nested reward never includes it, and a missing JSON field just defaults to null.
+public record DailyRewardEntry(string Type, int? Amount, string? CosmeticId = null);
+public record DailyRewardInfo(bool Available, int Day, DateTime? NextAvailableAt, DailyRewardEntry Reward);
+public record ClaimDailyRewardResponse(int Day, DailyRewardEntry Reward, int NextDay, DailyRewardEntry NextReward, bool CalendarWrapped);
+public record DailyRewardCalendarResponse(int CalendarLength, int CurrentDay, bool ClaimedToday, DailyRewardCalendarEntry[] Entries);
+public record DailyRewardCalendarEntry(int Day, DailyRewardEntry Reward, bool Claimed);
 
 public record CageResponse(
     string Id,
