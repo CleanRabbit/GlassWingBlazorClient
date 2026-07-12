@@ -15,10 +15,13 @@ builder.Services.AddSingleton<PlayerStateService>();
 builder.Services.AddSingleton<RewardToastService>();
 builder.Services.AddSingleton<ProgressStateService>();
 builder.Services.AddSingleton<WelfareStateService>();
+builder.Services.AddSingleton<WelfareBlockSignal>();
 builder.Services.AddTransient<GlassWingAuthHandler>();
+builder.Services.AddTransient<WelfareBlockDetectionHandler>();
 builder.Services.AddHttpClient<GlassWingApiClient>(client =>
     client.BaseAddress = new Uri(apiBase))
-    .AddHttpMessageHandler<GlassWingAuthHandler>();
+    .AddHttpMessageHandler<GlassWingAuthHandler>()
+    .AddHttpMessageHandler<WelfareBlockDetectionHandler>();
 builder.Services.AddHttpClient<OpenMeteoClient>();
 
 await builder.Build().RunAsync();

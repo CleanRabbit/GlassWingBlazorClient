@@ -242,7 +242,8 @@ public record HomeResponse(
     HomeMedicationDeviceInfo[]? MedicationDevices = null,
     string[]? MischiefNotifications = null,
     HomeWeatherAccessoryInfo[]? WeatherAccessories = null,
-    WeatherInfo? Weather = null);
+    WeatherInfo? Weather = null,
+    WelfareStatus? Welfare = null);
 
 // --- Vet/OTC home extras ---
 

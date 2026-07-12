@@ -438,8 +438,9 @@
         }
         else
         {
+            // A 409 welfare-block response is resynced globally by WelfareBlockDetectionHandler
+            // + WelfareBlockSignal — no need to refresh explicitly here.
             entryError = error ?? "Failed to enter lobby.";
-            await Welfare.RefreshAsync(); // resync in case a stale local state let a blocked action through
         }
         entryBusy = false;
     }
@@ -460,8 +461,9 @@
         }
         else
         {
+            // A 409 welfare-block response is resynced globally by WelfareBlockDetectionHandler
+            // + WelfareBlockSignal — no need to refresh explicitly here.
             createError = error ?? "Failed to create lobby.";
-            await Welfare.RefreshAsync(); // resync in case a stale local state let a blocked action through
         }
         createBusy = false;
     }

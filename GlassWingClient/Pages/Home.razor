@@ -7,6 +7,7 @@
 @inject RewardToastService RewardToasts
 @inject ProgressStateService ProgressState
 @inject OpenMeteoClient Weather
+@inject WelfareStateService Welfare
 
 <PageTitle>Home — GlassWing</PageTitle>
 
@@ -686,6 +687,7 @@ else
             {
                 ProgressState.ApplyHomeSnapshot(home);
                 await ToastNewAchievementsAsync(home);
+                if (home.Welfare is not null) Welfare.ApplyStatus(home.Welfare);
             }
         }
         catch (Exception ex)

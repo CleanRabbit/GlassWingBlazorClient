@@ -1,4 +1,5 @@
 @page "/adoption"
+@implements IDisposable
 @inject GlassWingApiClient Api
 @inject AuthStateService Auth
 @inject NavigationManager Nav
@@ -209,12 +210,11 @@ else
     string activeTab = "browse";
     int freeCarryCases;
     GameSettingsResponse? settings;
-    WelfareStatus? welfareStatus;
     string? toastMessage;
     bool toastIsError;
 
     bool FeeWillBeWaived =>
-        welfareStatus is { } ws && (ws.PostTutorialAdoption.FeeWaived || ws.MinimumRatCount.FeeWaived
+        Welfare.Status is { } ws && (ws.PostTutorialAdoption.FeeWaived || ws.MinimumRatCount.FeeWaived
             || (ws.LoneCage.Active && ws.LoneCage.Type == "DifferentSex"));
 
     // Browse
@@ -243,21 +243,21 @@ else
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        Welfare.OnChange += StateHasChanged;
 
         var homeTask = Api.GetHomeAsync();
         var settingsTask = Api.GetGameSettingsAsync();
         var profileTask = Api.GetPlayerProfileAsync();
-        var welfareTask = Api.GetWelfareStatusAsync();
-        await Task.WhenAll(homeTask, settingsTask, profileTask, welfareTask);
+        await Task.WhenAll(homeTask, settingsTask, profileTask);
 
         var (home, _) = await homeTask;
         settings = await settingsTask;
-        welfareStatus = await welfareTask;
         var profile = await profileTask;
 
         freeCarryCases = home?.CarryCases?.Count(c => c.RatId is null) ?? 0;
         surrenderCount = profile?.SurrenderCount ?? 0;
         if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        if (home?.Welfare is not null) Welfare.ApplyStatus(home.Welfare);
 
         await LoadPoolAsync();
         loaded = true;
@@ -425,4 +425,6 @@ else
         if (c.Type is not null and not "Standard") parts.Add(c.Type);
         return parts.Count > 0 ? string.Join(" ", parts) : "—";
     }
+
+    public void Dispose() => Welfare.OnChange -= StateHasChanged;
 }
