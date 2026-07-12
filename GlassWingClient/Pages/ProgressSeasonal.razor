@@ -1,0 +1,222 @@
+@page "/progress/seasonal"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+@inject ProgressStateService ProgressState
+
+<PageTitle>Seasonal Event — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Seasonal Event</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">Failed to load seasonal event.</div>
+}
+else
+{
+    @if (data.Active is { } active)
+    {
+        <div class="card border-primary mb-4">
+            <div class="card-body">
+                <h1 class="mb-1">@active.Name</h1>
+                <p class="text-muted mb-2">@active.Theme</p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <span class="badge bg-primary fs-6">@active.DaysRemaining day@(active.DaysRemaining != 1 ? "s" : "") left</span>
+                    <span class="badge bg-dark fs-6">
+                        @active.Challenges.Count(c => c.CompletedAt is not null) / @active.Challenges.Length challenges complete
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            @foreach (var c in active.Challenges)
+            {
+                <div class="col-md-4">
+                    <div class="card h-100 @(c.CompletedAt is not null ? "bg-body-secondary" : "")">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span class="badge @DifficultyBadgeClass(c.Difficulty)">@c.Difficulty</span>
+                                @if (c.CompletedAt is not null)
+                                {
+                                    <span class="text-success">✓</span>
+                                }
+                            </div>
+                            <div class="fw-bold">@c.Name</div>
+                            <div class="text-muted small mb-2">@c.Description</div>
+
+                            @if (c.CompletedAt is null)
+                            {
+                                if (c.Threshold > 1)
+                                {
+                                    <div class="progress mb-1" style="height:8px">
+                                        <div class="progress-bar" style="width:@(Pct(c.Progress, c.Threshold))%"></div>
+                                    </div>
+                                    <div class="text-muted small">@c.Progress / @c.Threshold</div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Not yet complete</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted small">Complete</span>
+                            }
+
+                            <div class="mt-2">
+                                <span class="badge bg-secondary">+@c.Reward.Currency cr</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card @(active.AllChallengesCompleted ? "border-success" : "opacity-75") mb-4">
+            <div class="card-header">Completion Reward</div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <span class="badge bg-secondary">+@active.CompletionReward.Currency cr</span>
+                    @foreach (var cosmeticId in active.CompletionReward.CosmeticIds)
+                    {
+                        <span class="badge bg-secondary">Cosmetic: @cosmeticId</span>
+                    }
+                    @if (active.TitleDisplayText is not null)
+                    {
+                        <span class="badge bg-secondary">Title: @active.TitleDisplayText</span>
+                    }
+                </div>
+                <div class="mt-2">
+                    @if (active.AllChallengesCompleted)
+                    {
+                        <span class="badge bg-success">Claimed</span>
+                    }
+                    else
+                    {
+                        <span class="text-muted small">Complete all @active.Challenges.Length challenges to unlock</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <h1 class="mb-3">Seasonal Event</h1>
+        <p class="text-muted">No seasonal event running right now.</p>
+    }
+
+    <h4 class="mt-4 mb-3">Upcoming Events</h4>
+    @if (data.Upcoming.Length == 0)
+    {
+        <p class="text-muted small">Nothing scheduled yet.</p>
+    }
+    else
+    {
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Event</th><th>Starts</th><th>Ends</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var e in data.Upcoming)
+                {
+                    <tr>
+                        <td>@e.Name</td>
+                        <td>@e.StartDate.ToLocalTime().ToShortDateString()</td>
+                        <td>@e.EndDate.ToLocalTime().ToShortDateString()</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    bool loaded;
+    SeasonalEventResponse? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+        data = await Api.GetSeasonalEventAsync();
+        if (data is not null)
+        {
+            // GET /api/seasonal-event drains PendingSeasonalCompletions server-side, so the
+            // client's badge state should clear regardless of whether any toast fires below.
+            ProgressState.ClearSeasonalCompletion();
+            await ToastNewCompletionsAsync(data);
+        }
+        loaded = true;
+    }
+
+    async Task ToastNewCompletionsAsync(SeasonalEventResponse response)
+    {
+        if (response.Active is not { } active) return;
+
+        var awardedCurrency = false;
+
+        foreach (var id in active.PendingCompletions)
+        {
+            var challenge = active.Challenges.FirstOrDefault(c => c.Id == id);
+            if (challenge is null) continue;
+
+            var toasted = RewardToasts.TryEnqueueSeasonalChallenge(id, new RewardToastItem(
+                RewardToastKind.Challenge,
+                "Challenge Complete!",
+                challenge.Name,
+                challenge.Reward.Currency));
+
+            if (toasted) awardedCurrency = true;
+        }
+
+        // Once-per-event completion toast (currency + cosmetic(s) + title applied
+        // atomically) — the richest toast in the system, deliberately, since it's rare.
+        if (active.AllChallengesCompleted)
+        {
+            var toasted = RewardToasts.TryEnqueueSeasonalCompletion(active.Id, new RewardToastItem(
+                RewardToastKind.SeasonalEvent,
+                $"Seasonal Event Complete: {active.Name}!",
+                active.Theme,
+                active.CompletionReward.Currency,
+                active.TitleDisplayText,
+                FormatCosmeticNames(active.CompletionReward.CosmeticIds)));
+
+            if (toasted) awardedCurrency = true;
+        }
+
+        if (awardedCurrency)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        }
+    }
+
+    static string? FormatCosmeticNames(IReadOnlyList<string> ids) => ids.Count switch
+    {
+        0 => null,
+        1 => ids[0],
+        _ => string.Join(", ", ids)
+    };
+
+    static string DifficultyBadgeClass(string difficulty) => difficulty switch
+    {
+        "Easy"   => "bg-secondary",
+        "Medium" => "bg-info text-dark",
+        "Hard"   => "bg-danger",
+        _        => "bg-secondary"
+    };
+
+    static int Pct(int progress, int threshold) => threshold <= 0 ? 0 : Math.Min(100, progress * 100 / threshold);
+}

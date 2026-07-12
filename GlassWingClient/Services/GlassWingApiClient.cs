@@ -165,6 +165,16 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    // --- Seasonal Events (Task 18e) ---
+
+    public async Task<SeasonalEventResponse?> GetSeasonalEventAsync()
+    {
+        var resp = await http.GetAsync("/api/seasonal-event/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<SeasonalEventResponse>(JsonOpts)
+            : null;
+    }
+
     // --- Titles (Task 18b) ---
 
     public async Task<(TitlesResponse? Result, string? Error)> GetTitlesAsync()

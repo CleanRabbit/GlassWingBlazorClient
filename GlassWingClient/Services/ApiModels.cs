@@ -96,7 +96,8 @@ public record HomeResponse(
     NewAchievementNotice[]? NewAchievements = null,
     AchievementsHomeSummary? Achievements = null,
     DailyRewardInfo? DailyReward = null,
-    ChallengesSummaryInfo? Challenges = null);
+    ChallengesSummaryInfo? Challenges = null,
+    SeasonalEventSummaryInfo? SeasonalEvent = null);
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
@@ -141,6 +142,29 @@ public record ChallengeRewardInfo(int Currency);
 public record ChallengeWeekSummary(int Completed, int Total, int TotalRewardAvailable);
 
 public record ChallengesSummaryInfo(DateTime WeekEnd, int Completed, int Total, bool HasCompletions);
+
+// ── Seasonal Events (Task 18e) ───────────────────────────────────────────────────
+
+// SeasonalChallengeEntry mirrors ChallengeEntry (Task 18d) minus Category — the real
+// backend response (SeasonalEventModule.cs) never included one, unlike the design doc's
+// "reused verbatim" assumption.
+public record SeasonalChallengeEntry(
+    string Id, string Name, string Description, string Difficulty,
+    int Progress, int Threshold, DateTime? CompletedAt, ChallengeRewardInfo Reward);
+
+public record SeasonalCompletionRewardInfo(int Currency, string[] CosmeticIds);
+
+public record ActiveSeasonalEvent(
+    string Id, string Name, string Theme, DateTime StartDate, DateTime EndDate, int DaysRemaining,
+    SeasonalCompletionRewardInfo CompletionReward, string? TitleId, string? TitleDisplayText,
+    SeasonalChallengeEntry[] Challenges, bool AllChallengesCompleted, string[] PendingCompletions);
+
+public record UpcomingSeasonalEvent(string Id, string Name, DateTime StartDate, DateTime EndDate);
+public record SeasonalEventResponse(ActiveSeasonalEvent? Active, UpcomingSeasonalEvent[] Upcoming);
+
+public record SeasonalEventSummaryInfo(
+    bool Active, string Name, DateTime EndsAt, int DaysRemaining,
+    int ChallengesCompleted, int ChallengesTotal, bool HasPendingCompletions);
 
 public record CageResponse(
     string Id,

@@ -19,6 +19,8 @@ public class RewardToastService
     readonly List<RewardToastItem> _items = [];
     readonly HashSet<string> _shownAchievementIds = [];
     readonly HashSet<string> _shownChallengeIds = [];
+    readonly HashSet<string> _shownSeasonalChallengeIds = [];
+    readonly HashSet<string> _shownSeasonalCompletionIds = [];
 
     public IReadOnlyList<RewardToastItem> Active => _items;
     public event Action? OnChange;
@@ -55,4 +57,28 @@ public class RewardToastService
     }
 
     public void ClearShownChallenges() => _shownChallengeIds.Clear();
+
+    // Separate namespace from _shownChallengeIds — seasonal and weekly challenge ids come
+    // from distinct catalogues per the backend design.
+    public bool TryEnqueueSeasonalChallenge(string id, RewardToastItem item)
+    {
+        if (!_shownSeasonalChallengeIds.Add(id)) return false;
+        Enqueue(item);
+        return true;
+    }
+
+    // Keyed by event id, not challenge id — this is the once-per-event completion toast
+    // (currency + cosmetic(s) + title applied atomically), distinct from per-challenge toasts.
+    public bool TryEnqueueSeasonalCompletion(string eventId, RewardToastItem item)
+    {
+        if (!_shownSeasonalCompletionIds.Add(eventId)) return false;
+        Enqueue(item);
+        return true;
+    }
+
+    public void ClearShownSeasonal()
+    {
+        _shownSeasonalChallengeIds.Clear();
+        _shownSeasonalCompletionIds.Clear();
+    }
 }

@@ -58,7 +58,7 @@
             new("/progress/titles",       "Titles",        "Display titles earned from achievements",           true,  () => false),
             new("/progress/daily",        "Daily Reward",  "Claim today's login reward",                        true,  () => ProgressState.DailyRewardAvailable),
             new("/progress/challenges",   "Challenges",    "This week's rotating challenge set",                true,  () => ProgressState.HasPendingChallenges),
-            new("/progress/seasonal",     "Seasonal Event","The current seasonal event's challenge track",      false, () => ProgressState.HasPendingSeasonalCompletion),
+            new("/progress/seasonal",     "Seasonal Event","The current seasonal event's challenge track",      true,  () => ProgressState.HasPendingSeasonalCompletion),
             new("/progress/cosmetics",    "Cosmetics",     "Cage decorations and rat accessories",              false, () => false),
         ];
 
