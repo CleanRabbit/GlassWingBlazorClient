@@ -40,6 +40,25 @@ else
                     <dl class="row mb-0">
                         <dt class="col-sm-4 text-muted fw-normal">Username</dt>
                         <dd class="col-sm-8">@profile.Username</dd>
+                        <dt class="col-sm-4 text-muted fw-normal">Title</dt>
+                        <dd class="col-sm-8">
+                            @if (titles is null)
+                            {
+                                <span class="text-muted small">Unable to load titles</span>
+                            }
+                            else
+                            {
+                                <select class="form-select form-select-sm d-inline-block w-auto" @bind="selectedTitleId" disabled="@titleBusy">
+                                    <option value="">— none —</option>
+                                    @foreach (var t in titles.Titles.Where(t => t.Unlocked))
+                                    {
+                                        <option value="@t.Id">@t.DisplayText</option>
+                                    }
+                                </select>
+                                <button class="btn btn-sm btn-outline-primary ms-1" @onclick="SaveTitleAsync" disabled="@titleBusy">Save</button>
+                                <a class="ms-2 small" href="/progress/titles">Browse all titles →</a>
+                            }
+                        </dd>
                         <dt class="col-sm-4 text-muted fw-normal">Balance</dt>
                         <dd class="col-sm-8">@profile.Currency.ToString("N0") cr</dd>
                         @if (profile.HomeName is not null)
@@ -89,6 +108,10 @@ else
     string? state;
     bool weatherEnabled;
 
+    TitlesResponse? titles;
+    string? selectedTitleId;
+    bool titleBusy;
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
@@ -100,7 +123,30 @@ else
             state          = profile.State;
             weatherEnabled = profile.WeatherEnabled;
         }
+
+        var (titlesResult, _) = await Api.GetTitlesAsync();
+        titles = titlesResult;
+        selectedTitleId = titles?.ActiveTitleId ?? "";
+
         loaded = true;
+    }
+
+    async Task SaveTitleAsync()
+    {
+        titleBusy = true; error = null; success = null;
+        var (ok, err) = await Api.SetActiveTitleAsync(string.IsNullOrEmpty(selectedTitleId) ? null : selectedTitleId);
+        if (ok)
+        {
+            var (refreshed, _) = await Api.GetTitlesAsync();
+            titles = refreshed;
+            selectedTitleId = titles?.ActiveTitleId ?? "";
+            success = "Title updated.";
+        }
+        else
+        {
+            error = err ?? "Failed to update title.";
+        }
+        titleBusy = false;
     }
 
     async Task SaveAsync()

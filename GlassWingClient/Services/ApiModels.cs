@@ -109,6 +109,11 @@ public record AchievementsSummary(int Total, int Completed, string[] PendingUnlo
 public record NewAchievementNotice(string Id, string Name, AchievementRewardInfo Reward);
 public record AchievementsHomeSummary(bool HasPendingUnlocks);
 
+// ── Titles (Task 18b) ───────────────────────────────────────────────────────────
+
+public record TitlesResponse(string? ActiveTitleId, TitleEntry[] Titles);
+public record TitleEntry(string Id, string DisplayText, string Description, string UnlockSource, bool Unlocked);
+
 public record CageResponse(
     string Id,
     string Name,
@@ -244,4 +249,6 @@ public record PlayerProfileResponse(
     string? HomeName = null,
     string? Country = null,
     string? State = null,
-    bool WeatherEnabled = false);
+    bool WeatherEnabled = false,
+    string? ActiveTitleId = null,
+    string? ActiveTitleText = null);

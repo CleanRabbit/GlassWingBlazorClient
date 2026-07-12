@@ -155,6 +155,25 @@ public class GlassWingApiClient(HttpClient http)
         return (await resp.Content.ReadFromJsonAsync<AchievementsResponse>(JsonOpts), null);
     }
 
+    // --- Titles (Task 18b) ---
+
+    public async Task<(TitlesResponse? Result, string? Error)> GetTitlesAsync()
+    {
+        var resp = await http.GetAsync("/api/titles/");
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<TitlesResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    public async Task<(bool Success, string? Error)> SetActiveTitleAsync(string? titleId)
+    {
+        var resp = await http.PutAsJsonAsync("/api/players/me/title", new { titleId }, JsonOpts);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     public async Task<bool> RenameHomeAsync(string name)
     {
         var resp = await http.PatchAsJsonAsync("/api/home/name", new { name }, JsonOpts);

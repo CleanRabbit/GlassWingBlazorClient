@@ -1,0 +1,124 @@
+@page "/progress/titles"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Titles — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Titles</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">@(error ?? "Failed to load titles.")</div>
+}
+else
+{
+    @if (success is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @success
+            <button type="button" class="btn-close" @onclick="() => success = null"></button>
+        </div>
+    }
+    @if (actionError is not null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @actionError
+            <button type="button" class="btn-close" @onclick="() => actionError = null"></button>
+        </div>
+    }
+
+    <h1 class="mb-4">Titles</h1>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center py-2 px-3 border-bottom">
+                <div>
+                    <div class="fw-bold">No title</div>
+                    <div class="text-muted small">Display no title.</div>
+                </div>
+                @if (data.ActiveTitleId is null)
+                {
+                    <span class="badge bg-success">Active</span>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => EquipAsync(null)" disabled="@busy">Equip</button>
+                }
+            </div>
+            @foreach (var t in data.Titles)
+            {
+                <div class="d-flex justify-content-between align-items-center py-2 px-3 border-bottom @(t.Unlocked ? "" : "opacity-50")">
+                    <div>
+                        <div class="fw-bold">@t.DisplayText</div>
+                        <div class="text-muted small">@t.Description</div>
+                        <span class="badge bg-secondary mt-1">@t.UnlockSource</span>
+                    </div>
+                    @if (!t.Unlocked)
+                    {
+                        <span class="badge bg-secondary">Locked</span>
+                    }
+                    else if (data.ActiveTitleId == t.Id)
+                    {
+                        <div class="d-flex flex-column align-items-end gap-1">
+                            <span class="badge bg-success">Active</span>
+                            <button class="btn btn-link btn-sm p-0" @onclick="() => EquipAsync(null)">Clear</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EquipAsync(t.Id)" disabled="@busy">Equip</button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    bool loaded;
+    bool busy;
+    TitlesResponse? data;
+    string? error;
+    string? success;
+    string? actionError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+        loaded = true;
+    }
+
+    async Task LoadAsync()
+    {
+        var (result, err) = await Api.GetTitlesAsync();
+        data = result;
+        error = err;
+    }
+
+    async Task EquipAsync(string? titleId)
+    {
+        busy = true; actionError = null; success = null;
+        var (ok, err) = await Api.SetActiveTitleAsync(titleId);
+        if (ok)
+        {
+            await LoadAsync();
+            success = titleId is null ? "Title cleared." : "Title equipped.";
+        }
+        else
+        {
+            actionError = err ?? "Failed to update title.";
+        }
+        busy = false;
+    }
+}
