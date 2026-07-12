@@ -95,7 +95,8 @@ public record HomeResponse(
     LifeStageNotification[]? LifeStageNotifications = null,
     NewAchievementNotice[]? NewAchievements = null,
     AchievementsHomeSummary? Achievements = null,
-    DailyRewardInfo? DailyReward = null);
+    DailyRewardInfo? DailyReward = null,
+    ChallengesSummaryInfo? Challenges = null);
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
@@ -125,6 +126,21 @@ public record DailyRewardInfo(bool Available, int Day, DateTime? NextAvailableAt
 public record ClaimDailyRewardResponse(int Day, DailyRewardEntry Reward, int NextDay, DailyRewardEntry NextReward, bool CalendarWrapped);
 public record DailyRewardCalendarResponse(int CalendarLength, int CurrentDay, bool ClaimedToday, DailyRewardCalendarEntry[] Entries);
 public record DailyRewardCalendarEntry(int Day, DailyRewardEntry Reward, bool Claimed);
+
+// ── Challenges (Task 18d) ───────────────────────────────────────────────────────
+
+public record ChallengeWeekResponse(
+    int WeekNumber, DateTime WeekStart, DateTime WeekEnd,
+    ChallengeEntry[] Challenges, string[] PendingCompletions, ChallengeWeekSummary Summary);
+
+public record ChallengeEntry(
+    string Id, string Name, string Description, string Difficulty, string Category,
+    int Progress, int Threshold, DateTime? CompletedAt, ChallengeRewardInfo Reward);
+
+public record ChallengeRewardInfo(int Currency);
+public record ChallengeWeekSummary(int Completed, int Total, int TotalRewardAvailable);
+
+public record ChallengesSummaryInfo(DateTime WeekEnd, int Completed, int Total, bool HasCompletions);
 
 public record CageResponse(
     string Id,

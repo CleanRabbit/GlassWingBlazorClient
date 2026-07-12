@@ -18,6 +18,7 @@ public class RewardToastService
 {
     readonly List<RewardToastItem> _items = [];
     readonly HashSet<string> _shownAchievementIds = [];
+    readonly HashSet<string> _shownChallengeIds = [];
 
     public IReadOnlyList<RewardToastItem> Active => _items;
     public event Action? OnChange;
@@ -43,4 +44,15 @@ public class RewardToastService
     }
 
     public void ClearShownAchievements() => _shownAchievementIds.Clear();
+
+    // Kept separate from _shownAchievementIds — achievement and challenge ids come from
+    // different catalogues and could theoretically collide as plain strings.
+    public bool TryEnqueueChallenge(string id, RewardToastItem item)
+    {
+        if (!_shownChallengeIds.Add(id)) return false;
+        Enqueue(item);
+        return true;
+    }
+
+    public void ClearShownChallenges() => _shownChallengeIds.Clear();
 }

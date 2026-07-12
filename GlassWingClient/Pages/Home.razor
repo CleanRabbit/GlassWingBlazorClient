@@ -95,6 +95,12 @@ else
             <h1 class="mb-0">@home!.Name</h1>
             <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
         }
+        @if (home!.Challenges is { } challenges)
+        {
+            <a href="/progress/challenges" class="text-decoration-none small text-muted">
+                Challenges: @challenges.Completed/@challenges.Total this week
+            </a>
+        }
         @if (PlayerState.Currency.HasValue)
         {
             <span class="ms-auto badge bg-dark fs-6">@PlayerState.Currency.Value.ToString("N0") cr</span>

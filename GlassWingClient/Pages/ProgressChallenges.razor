@@ -1,0 +1,135 @@
+@page "/progress/challenges"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+@inject ProgressStateService ProgressState
+
+<PageTitle>Challenges — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Challenges</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">Failed to load challenges.</div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+        <h1 class="mb-0">Challenges</h1>
+        <span class="badge bg-dark fs-6">@data.Summary.Completed / @data.Summary.Total complete</span>
+        <span class="badge bg-secondary fs-6">@data.Summary.TotalRewardAvailable cr available</span>
+    </div>
+    <p class="text-muted small mb-4">
+        Week of @data.WeekStart.ToLocalTime().ToShortDateString() – @data.WeekEnd.ToLocalTime().ToShortDateString()
+    </p>
+
+    <div class="row g-3">
+        @foreach (var c in data.Challenges)
+        {
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 @(c.CompletedAt is not null ? "bg-body-secondary" : "")">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="badge @DifficultyBadgeClass(c.Difficulty)">@c.Difficulty</span>
+                            @if (c.CompletedAt is not null)
+                            {
+                                <span class="text-success">✓</span>
+                            }
+                        </div>
+                        <div class="fw-bold">@c.Name</div>
+                        <div class="text-muted small mb-2">@c.Description</div>
+
+                        @if (c.CompletedAt is null)
+                        {
+                            if (c.Threshold > 1)
+                            {
+                                <div class="progress mb-1" style="height:8px">
+                                    <div class="progress-bar" style="width:@(Pct(c.Progress, c.Threshold))%"></div>
+                                </div>
+                                <div class="text-muted small">@c.Progress / @c.Threshold</div>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">Not yet complete</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted small">Complete</span>
+                        }
+
+                        <div class="mt-2">
+                            <span class="badge bg-secondary">+@c.Reward.Currency cr</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    bool loaded;
+    ChallengeWeekResponse? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+        data = await Api.GetChallengesAsync();
+        if (data is not null)
+        {
+            // GET /api/challenges drains PendingCompletions server-side, so the client's
+            // badge state should clear regardless of whether any toast fires below.
+            ProgressState.ClearChallenges();
+            await ToastNewCompletionsAsync(data);
+        }
+        loaded = true;
+    }
+
+    async Task ToastNewCompletionsAsync(ChallengeWeekResponse response)
+    {
+        var awardedCurrency = false;
+
+        foreach (var id in response.PendingCompletions)
+        {
+            var challenge = response.Challenges.FirstOrDefault(c => c.Id == id);
+            if (challenge is null) continue;
+
+            var toasted = RewardToasts.TryEnqueueChallenge(id, new RewardToastItem(
+                RewardToastKind.Challenge,
+                "Challenge Complete!",
+                challenge.Name,
+                challenge.Reward.Currency));
+
+            if (toasted) awardedCurrency = true;
+        }
+
+        if (awardedCurrency)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        }
+    }
+
+    static string DifficultyBadgeClass(string difficulty) => difficulty switch
+    {
+        "Easy"   => "bg-secondary",
+        "Medium" => "bg-info text-dark",
+        "Hard"   => "bg-danger",
+        _        => "bg-secondary"
+    };
+
+    static int Pct(int progress, int threshold) => threshold <= 0 ? 0 : Math.Min(100, progress * 100 / threshold);
+}

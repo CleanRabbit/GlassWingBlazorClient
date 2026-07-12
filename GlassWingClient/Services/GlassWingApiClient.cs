@@ -155,6 +155,16 @@ public class GlassWingApiClient(HttpClient http)
         return (await resp.Content.ReadFromJsonAsync<AchievementsResponse>(JsonOpts), null);
     }
 
+    // --- Challenges (Task 18d) ---
+
+    public async Task<ChallengeWeekResponse?> GetChallengesAsync()
+    {
+        var resp = await http.GetAsync("/api/challenges/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<ChallengeWeekResponse>(JsonOpts)
+            : null;
+    }
+
     // --- Titles (Task 18b) ---
 
     public async Task<(TitlesResponse? Result, string? Error)> GetTitlesAsync()
