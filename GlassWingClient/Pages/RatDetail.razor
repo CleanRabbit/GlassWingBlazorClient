@@ -532,11 +532,22 @@ else
     </div>
 }
 
+@if (secretToastMessage is not null)
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+        <div class="alert alert-success alert-dismissible shadow">
+            @secretToastMessage
+            <button type="button" class="btn-close" @onclick="() => secretToastMessage = null"></button>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Id { get; set; } = "";
 
     RatResponse? rat;
     GameSettingsResponse? settings;
+    string? secretToastMessage;
     bool renaming;
     string newName = "";
     bool training;
@@ -759,6 +770,7 @@ else
         if (string.IsNullOrWhiteSpace(newName)) return;
         var updated = await Api.RenameRatAsync(Id, newName);
         if (updated is not null) rat = updated;
+        if (updated?.SecretMessage is { } msg) secretToastMessage = msg;
         renaming = false;
     }
 

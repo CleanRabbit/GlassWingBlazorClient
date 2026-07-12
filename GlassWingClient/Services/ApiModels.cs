@@ -34,7 +34,11 @@ public record RatResponse(
     BondingInfo? Bonding = null,
     PlaySessionInfo? PlaySession = null,
     OtcProtectionInfo[]? OtcProtections = null,
-    OtcMedicationCooldownInfo[]? OtcMedicationCooldowns = null);
+    OtcMedicationCooldownInfo[]? OtcMedicationCooldowns = null,
+    // Secret rat easter egg (Task 23) — present only on the rename response that freshly
+    // claims a transformation; absent (not null) from the JSON on every other response, so its
+    // mere presence can't be used to fingerprint claimed rats via schema inspection.
+    string? SecretMessage = null);
 
 // --- Tricks (Task 19) ---
 
