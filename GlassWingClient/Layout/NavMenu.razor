@@ -1,3 +1,5 @@
+@implements IDisposable
+
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="/home">GlassWing</a>
@@ -28,13 +30,27 @@
             <NavLink class="nav-link" href="marketplace">Marketplace</NavLink>
         </div>
         <div class="nav-item px-3">
+            <NavLink class="nav-link" href="progress">
+                Progress
+                @if (ProgressState.HasAnyPending)
+                {
+                    <span class="badge bg-danger rounded-pill ms-1">&nbsp;</span>
+                }
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
             <NavLink class="nav-link" href="profile">Profile</NavLink>
         </div>
     </nav>
 </div>
 
 @code {
+    [Inject] ProgressStateService ProgressState { get; set; } = default!;
+
     private bool collapseNavMenu = true;
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
     private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
+
+    protected override void OnInitialized() => ProgressState.OnChange += StateHasChanged;
+    public void Dispose() => ProgressState.OnChange -= StateHasChanged;
 }

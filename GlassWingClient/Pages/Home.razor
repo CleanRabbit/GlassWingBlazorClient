@@ -4,6 +4,8 @@
 @inject AuthStateService Auth
 @inject NavigationManager Nav
 @inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+@inject ProgressStateService ProgressState
 
 <PageTitle>Home — GlassWing</PageTitle>
 
@@ -522,6 +524,12 @@ else
             loadError    = error;
             gameSettings = settings;
             renameValue  = home?.Name ?? "";
+
+            if (home is not null)
+            {
+                ProgressState.ApplyHomeSnapshot(home);
+                await ToastNewAchievementsAsync(home);
+            }
         }
         catch (Exception ex)
         {
@@ -530,6 +538,31 @@ else
         finally
         {
             loaded = true;
+        }
+    }
+
+    async Task ToastNewAchievementsAsync(HomeResponse homeData)
+    {
+        if (homeData.NewAchievements is not { Length: > 0 } newAchievements) return;
+
+        var awardedCurrency = false;
+        foreach (var a in newAchievements)
+        {
+            var toasted = RewardToasts.TryEnqueueAchievement(a.Id, new RewardToastItem(
+                RewardToastKind.Achievement,
+                "Achievement Unlocked!",
+                a.Name,
+                a.Reward.Currency,
+                a.Reward.TitleId,
+                a.Reward.CosmeticId));
+
+            if (toasted && a.Reward.Currency.HasValue) awardedCurrency = true;
+        }
+
+        if (awardedCurrency)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
         }
     }
 

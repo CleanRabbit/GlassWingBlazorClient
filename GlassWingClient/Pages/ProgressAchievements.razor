@@ -1,0 +1,154 @@
+@page "/progress/achievements"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+@inject ProgressStateService ProgressState
+
+<PageTitle>Achievements — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/progress">Progress</a></li>
+        <li class="breadcrumb-item active">Achievements</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">@(error ?? "Failed to load achievements.")</div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h1 class="mb-0">Achievements</h1>
+        <span class="badge bg-dark fs-6">@data.Summary.Completed / @data.Summary.Total unlocked</span>
+    </div>
+
+    @foreach (var group in data.Categories)
+    {
+        <div class="card mb-3">
+            <div class="card-header">@group.Category</div>
+            <div class="card-body">
+                @foreach (var a in group.Achievements)
+                {
+                    <div class="d-flex justify-content-between align-items-start py-2 border-bottom">
+                        <div class="flex-grow-1 me-3">
+                            <div class="fw-bold">
+                                @a.Name
+                                @if (a.CompletedAt is not null)
+                                {
+                                    <span class="badge bg-success ms-2">✓ @a.CompletedAt.Value.ToLocalTime().ToShortDateString()</span>
+                                }
+                            </div>
+                            <div class="text-muted small">@a.Description</div>
+
+                            @if (a.CompletedAt is null)
+                            {
+                                if (a.Threshold > 1)
+                                {
+                                    <div class="progress mt-1" style="height:8px; max-width:300px">
+                                        <div class="progress-bar" style="width:@(Pct(a.Progress, a.Threshold))%"></div>
+                                    </div>
+                                    <div class="text-muted small">@a.Progress / @a.Threshold</div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Not yet unlocked</span>
+                                }
+                            }
+                        </div>
+                        <div class="d-flex flex-column align-items-end gap-1">
+                            @if (a.Reward.Currency is { } currency)
+                            {
+                                <span class="badge bg-secondary">+@currency cr</span>
+                            }
+                            @if (a.Reward.TitleId is not null)
+                            {
+                                <span class="badge bg-secondary">Title: @a.Reward.TitleId</span>
+                            }
+                            @if (a.Reward.CosmeticId is not null)
+                            {
+                                <span class="badge bg-secondary">Cosmetic: @a.Reward.CosmeticId</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    bool loaded;
+    AchievementsResponse? data;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            var (result, err) = await Api.GetAchievementsAsync();
+            data = result;
+            error = err;
+
+            if (data is not null)
+            {
+                // GET /api/achievements drains the pending-unlock queue server-side, so the
+                // client's badge state should clear regardless of whether any toast fires below.
+                ProgressState.ClearAchievements();
+                await ToastNewUnlocksAsync(data);
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loaded = true;
+        }
+    }
+
+    async Task ToastNewUnlocksAsync(AchievementsResponse response)
+    {
+        var awardedCurrency = false;
+
+        foreach (var id in response.Summary.PendingUnlocks)
+        {
+            var achievement = response.Categories
+                .SelectMany(c => c.Achievements)
+                .FirstOrDefault(a => a.Id == id);
+            if (achievement is null) continue;
+
+            var toasted = RewardToasts.TryEnqueueAchievement(id, new RewardToastItem(
+                RewardToastKind.Achievement,
+                "Achievement Unlocked!",
+                $"{achievement.Name} — {achievement.Description}",
+                achievement.Reward.Currency,
+                achievement.Reward.TitleId,
+                achievement.Reward.CosmeticId));
+
+            if (toasted && achievement.Reward.Currency.HasValue) awardedCurrency = true;
+        }
+
+        if (awardedCurrency)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        }
+    }
+
+    static int Pct(int progress, int threshold) => threshold <= 0 ? 0 : Math.Min(100, progress * 100 / threshold);
+}

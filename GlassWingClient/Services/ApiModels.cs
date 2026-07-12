@@ -92,7 +92,22 @@ public record HomeResponse(
     int? CagesOccupied = null,
     int? TotalAccessorySlots = null,
     AutoFillNotification[]? AutoFills = null,
-    LifeStageNotification[]? LifeStageNotifications = null);
+    LifeStageNotification[]? LifeStageNotifications = null,
+    NewAchievementNotice[]? NewAchievements = null,
+    AchievementsHomeSummary? Achievements = null);
+
+// ── Achievements (Task 18a) ────────────────────────────────────────────────────
+
+public record AchievementsResponse(AchievementCategoryGroup[] Categories, AchievementsSummary Summary);
+public record AchievementCategoryGroup(string Category, AchievementEntry[] Achievements);
+public record AchievementEntry(
+    string Id, string Name, string Description,
+    DateTime? CompletedAt, int Progress, int Threshold,
+    AchievementRewardInfo Reward);
+public record AchievementRewardInfo(int? Currency, string? TitleId, string? CosmeticId);
+public record AchievementsSummary(int Total, int Completed, string[] PendingUnlocks);
+public record NewAchievementNotice(string Id, string Name, AchievementRewardInfo Reward);
+public record AchievementsHomeSummary(bool HasPendingUnlocks);
 
 public record CageResponse(
     string Id,

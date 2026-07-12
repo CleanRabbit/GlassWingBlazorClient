@@ -4,6 +4,9 @@
 @inject NavigationManager Nav
 @inject GlassWingApiClient Api
 @inject PlayerStateService PlayerState
+@inject RewardToastService RewardToasts
+
+<RewardToastHost />
 
 <div class="page">
     <div class="sidebar">
@@ -48,6 +51,7 @@
         Auth.Token = null;
         Auth.IsDevBypass = false;
         PlayerState.SetCurrency(0);
+        RewardToasts.ClearShownAchievements();
         Nav.NavigateTo("/login");
     }
 
