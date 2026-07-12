@@ -1,0 +1,317 @@
+@implements IDisposable
+@inject WelfareStateService Welfare
+@inject GlassWingApiClient Api
+@inject PlayerStateService PlayerState
+
+@if (Welfare.IsTotalLocked)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+         style="background:rgba(0,0,0,.65); z-index:1200">
+        <div class="card shadow" style="max-width:520px; width:92%">
+            <div class="card-body">
+                @if (Welfare.Status!.ActiveBlock == "MinimumRatCount")
+                {
+                    @ForcedAdoptionPanel()
+                }
+                else if (Welfare.Status!.LoneCage.Type == "SameSex")
+                {
+                    @CageMergePanel()
+                }
+                else if (Welfare.Status!.LoneCage.Type == "DifferentSex")
+                {
+                    @CompanionAdoptionPanel()
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    HomeResponse? home;
+    bool homeLoaded;
+
+    // Forced adoption (MinimumRatCount)
+    PooledRatResponse[] pool = [];
+    bool poolLoading;
+    bool adoptBusy;
+    string? adoptError;
+
+    // Cage merge (LoneCage SameSex)
+    bool mergeBusy;
+    string? mergeError;
+
+    // Companion adoption wizard (LoneCage DifferentSex)
+    int wizardStep = 1;
+    bool wizardBusy;
+    string? wizardError;
+    PooledRatResponse[] wizardPool = [];
+    bool wizardPoolLoading;
+
+    protected override void OnInitialized() => Welfare.OnChange += OnWelfareChanged;
+    public void Dispose() => Welfare.OnChange -= OnWelfareChanged;
+
+    async void OnWelfareChanged()
+    {
+        // Reset per-block transient state whenever the active block itself changes shape,
+        // so a stale wizard step / error message doesn't linger into the next lock.
+        if (!Welfare.IsTotalLocked) { wizardStep = 1; }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task EnsureHomeLoadedAsync()
+    {
+        if (homeLoaded) return;
+        var (data, _) = await Api.GetHomeAsync();
+        home = data;
+        homeLoaded = true;
+    }
+
+    async Task EnsurePoolLoadedAsync()
+    {
+        if (pool.Length > 0 || poolLoading) return;
+        poolLoading = true;
+        var result = await Api.GetAdoptionPoolAsync(null, 1, 20);
+        pool = result?.Items ?? [];
+        if (pool.Length == 0)
+        {
+            var random = await Api.GetRandomAdoptionPoolAsync("Female", 6);
+            pool = random ?? [];
+        }
+        poolLoading = false;
+        StateHasChanged();
+    }
+
+    RenderFragment ForcedAdoptionPanel() => __builder =>
+    {
+        <h5 class="mb-2">You need at least 2 rats</h5>
+        <p class="text-muted small mb-3">Your rat count dropped below the minimum. Adopt a companion to continue — this adoption is free.</p>
+
+        if (!poolLoading && pool.Length == 0)
+        {
+            _ = EnsurePoolLoadedAsync();
+        }
+
+        if (poolLoading)
+        {
+            <p class="text-muted small">Loading available rats...</p>
+        }
+        else if (pool.Length == 0)
+        {
+            <p class="text-muted small">No rats available right now — try again shortly.</p>
+        }
+        else
+        {
+            <div class="row g-2" style="max-height:320px; overflow-y:auto">
+                @foreach (var entry in pool)
+                {
+                    <div class="col-6">
+                        <div class="card h-100">
+                            <div class="card-body p-2 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="small fw-semibold">@entry.Name</span>
+                                    <span class="badge bg-light text-dark border small">@entry.Sex</span>
+                                </div>
+                                <button class="btn btn-sm btn-primary mt-auto" disabled="@adoptBusy"
+                                        @onclick="() => AdoptAsync(entry.Id)">
+                                    @(adoptBusy ? "..." : "Adopt (Free)")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        if (adoptError is not null)
+        {
+            <div class="alert alert-danger py-2 mt-3 mb-0 small">@adoptError</div>
+        }
+    };
+
+    async Task AdoptAsync(string ratId)
+    {
+        adoptBusy = true;
+        adoptError = null;
+        var (result, err) = await Api.AdoptRatAsync(ratId);
+        if (result is not null)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            await Welfare.RefreshAsync();
+        }
+        else
+        {
+            adoptError = err ?? "Adoption failed.";
+            pool = pool.Where(p => p.Id != ratId).ToArray();
+        }
+        adoptBusy = false;
+    }
+
+    RenderFragment CageMergePanel() => __builder =>
+    {
+        if (!homeLoaded) { _ = LoadHomeThenRenderAsync(); }
+
+        var cageA = Welfare.Status?.LoneCage.CageA;
+        var cageB = Welfare.Status?.LoneCage.CageB;
+        var cageAInfo = home?.Cages.FirstOrDefault(c => c.Id == cageA?.CageId);
+        var cageBInfo = home?.Cages.FirstOrDefault(c => c.Id == cageB?.CageId);
+        var ratB = cageBInfo?.Rats.FirstOrDefault();
+
+        <h5 class="mb-2">Rats need company</h5>
+        @if (cageAInfo is null || cageBInfo is null || ratB is null)
+        {
+            <p class="text-muted small mb-0">Loading cage details...</p>
+        }
+        else
+        {
+            <p class="text-muted small mb-3">
+                <strong>@ratB.Name</strong> (@cageBInfo.Name) will move in with @cageAInfo.Rats.FirstOrDefault()?.Name (@cageAInfo.Name) so neither rat is alone.
+            </p>
+            <button class="btn btn-primary" disabled="@mergeBusy" @onclick="() => MergeCagesAsync(cageBInfo.Id, ratB.Id, cageAInfo.Id)">
+                @(mergeBusy ? "Moving..." : $"Move {ratB.Name} into {cageAInfo.Name}")
+            </button>
+        }
+
+        if (mergeError is not null)
+        {
+            <div class="alert alert-danger py-2 mt-3 mb-0 small">@mergeError</div>
+        }
+    };
+
+    async Task LoadHomeThenRenderAsync()
+    {
+        await EnsureHomeLoadedAsync();
+        StateHasChanged();
+    }
+
+    async Task MergeCagesAsync(string sourceCageId, string ratId, string targetCageId)
+    {
+        mergeBusy = true;
+        mergeError = null;
+        var (pickedUp, pickupErr) = await Api.PickUpRatFromCageAsync(sourceCageId, ratId);
+        if (!pickedUp)
+        {
+            mergeError = pickupErr ?? "Failed to pick up rat.";
+            mergeBusy = false;
+            return;
+        }
+
+        var (data, _) = await Api.GetHomeAsync();
+        home = data;
+        var carryCase = home?.CarryCases?.FirstOrDefault(c => c.RatId == ratId);
+        if (carryCase is null)
+        {
+            mergeError = "Rat picked up but no carry case found — refresh and try again.";
+            mergeBusy = false;
+            return;
+        }
+
+        var (placed, placeErr) = await Api.PlaceRatFromCarryCaseAsync(carryCase.Id, targetCageId);
+        if (!placed)
+        {
+            mergeError = placeErr ?? "Failed to place rat in the target cage.";
+            mergeBusy = false;
+            return;
+        }
+
+        homeLoaded = false;
+        await Welfare.RefreshAsync();
+        mergeBusy = false;
+    }
+
+    RenderFragment CompanionAdoptionPanel() => __builder =>
+    {
+        var cageRef = wizardStep == 1 ? Welfare.Status?.LoneCage.CageA : Welfare.Status?.LoneCage.CageB;
+
+        if (!wizardPoolLoading && wizardPool.Length == 0)
+        {
+            _ = EnsureWizardPoolLoadedAsync(cageRef?.Sex ?? "Female");
+        }
+
+        <h5 class="mb-2">Adopt companions (step @wizardStep of 2)</h5>
+        <p class="text-muted small mb-3">Adopt a <strong>@cageRef?.Sex</strong> rat for this cage — free.</p>
+
+        if (wizardPoolLoading)
+        {
+            <p class="text-muted small">Loading available rats...</p>
+        }
+        else if (wizardPool.Length == 0)
+        {
+            <p class="text-muted small">No rats available right now — try again shortly.</p>
+        }
+        else
+        {
+            <div class="row g-2" style="max-height:320px; overflow-y:auto">
+                @foreach (var entry in wizardPool)
+                {
+                    <div class="col-6">
+                        <div class="card h-100">
+                            <div class="card-body p-2 d-flex flex-column">
+                                <span class="small fw-semibold">@entry.Name</span>
+                                <button class="btn btn-sm btn-primary mt-auto" disabled="@wizardBusy"
+                                        @onclick="() => WizardAdoptAsync(entry.Id, cageRef!.CageId)">
+                                    @(wizardBusy ? "..." : "Adopt (Free)")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        if (wizardError is not null)
+        {
+            <div class="alert alert-danger py-2 mt-3 mb-0 small">@wizardError</div>
+        }
+    };
+
+    async Task EnsureWizardPoolLoadedAsync(string sex)
+    {
+        wizardPoolLoading = true;
+        var result = await Api.GetAdoptionPoolAsync(sex, 1, 20);
+        wizardPool = result?.Items ?? [];
+        if (wizardPool.Length == 0)
+        {
+            var random = await Api.GetRandomAdoptionPoolAsync(sex, 6);
+            wizardPool = random ?? [];
+        }
+        wizardPoolLoading = false;
+        StateHasChanged();
+    }
+
+    async Task WizardAdoptAsync(string ratId, string targetCageId)
+    {
+        wizardBusy = true;
+        wizardError = null;
+        var (result, err) = await Api.AdoptRatAsync(ratId);
+        if (result is null)
+        {
+            wizardError = err ?? "Adoption failed.";
+            wizardPool = wizardPool.Where(p => p.Id != ratId).ToArray();
+            wizardBusy = false;
+            return;
+        }
+
+        var (placed, placeErr) = await Api.PlaceRatFromCarryCaseAsync(result.CarryCaseId, targetCageId);
+        if (!placed)
+        {
+            wizardError = placeErr ?? "Adopted, but failed to place the rat in its cage.";
+            wizardBusy = false;
+            return;
+        }
+
+        var profile = await Api.GetPlayerProfileAsync();
+        if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+
+        if (wizardStep == 1)
+        {
+            wizardStep = 2;
+            wizardPool = [];
+        }
+        else
+        {
+            await Welfare.RefreshAsync();
+        }
+        wizardBusy = false;
+    }
+}

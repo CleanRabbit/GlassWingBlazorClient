@@ -5,6 +5,7 @@
 @inject GlassWingApiClient Api
 @inject PlayerStateService PlayerState
 @inject RewardToastService RewardToasts
+@inject WelfareStateService Welfare
 
 <RewardToastHost />
 
@@ -35,15 +36,43 @@
     </main>
 </div>
 
+<WelfareLockOverlay />
+
 @code {
+    PeriodicTimer? welfareTimer;
+
     protected override async Task OnInitializedAsync()
     {
         PlayerState.OnChange += StateHasChanged;
+        Welfare.OnChange += StateHasChanged;
+        Nav.LocationChanged += OnLocationChanged;
+
         if (Auth.IsAuthenticated)
         {
             var profile = await Api.GetPlayerProfileAsync();
             if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            await Welfare.RefreshAsync();
         }
+
+        _ = RunWelfarePollLoopAsync();
+    }
+
+    async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (Auth.IsAuthenticated) await Welfare.RefreshAsync();
+    }
+
+    async Task RunWelfarePollLoopAsync()
+    {
+        welfareTimer = new PeriodicTimer(TimeSpan.FromSeconds(45));
+        try
+        {
+            while (await welfareTimer.WaitForNextTickAsync())
+            {
+                if (Auth.IsAuthenticated) await Welfare.RefreshAsync();
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     void Logout()
@@ -57,5 +86,11 @@
         Nav.NavigateTo("/login");
     }
 
-    public void Dispose() => PlayerState.OnChange -= StateHasChanged;
+    public void Dispose()
+    {
+        PlayerState.OnChange -= StateHasChanged;
+        Welfare.OnChange -= StateHasChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+        welfareTimer?.Dispose();
+    }
 }

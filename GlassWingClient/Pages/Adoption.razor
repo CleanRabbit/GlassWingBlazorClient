@@ -3,6 +3,7 @@
 @inject AuthStateService Auth
 @inject NavigationManager Nav
 @inject PlayerStateService PlayerState
+@inject WelfareStateService Welfare
 
 <PageTitle>Adoption Agency — GlassWing</PageTitle>
 <h1 class="mb-4">Adoption Agency</h1>
@@ -342,6 +343,7 @@ else
             adoptTarget = null;
             var profile = await Api.GetPlayerProfileAsync();
             if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            await Welfare.RefreshAsync();
             toastIsError = false;
             toastMessage = "Adopted! Check your carry cases on the Home page.";
         }
@@ -402,6 +404,7 @@ else
             myRats = myRats.Where(r => r.Id != target.Id).ToArray();
             surrenderCount++;
             surrenderTarget = null;
+            await Welfare.RefreshAsync();
             toastIsError = false;
             toastMessage = $"{target.Name} surrendered to the Adoption Agency.";
         }

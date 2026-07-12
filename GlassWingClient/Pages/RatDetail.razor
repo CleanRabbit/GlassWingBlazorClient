@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject PlayerStateService PlayerState
 @inject RewardToastService RewardToasts
+@inject WelfareStateService Welfare
 
 <PageTitle>@(rat?.Name ?? "Rat") — GlassWing</PageTitle>
 
@@ -950,6 +951,7 @@ else
         {
             rat = updated;
             showRetireConfirm = false;
+            await Welfare.RefreshAsync(); // retiring can drop the player below the minimum rat count
         }
         else
         {

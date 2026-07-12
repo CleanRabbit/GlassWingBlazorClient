@@ -469,6 +469,14 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
+    public async Task<(bool Success, string? Error)> PickUpRatFromCageAsync(string cageId, string ratId)
+    {
+        var resp = await http.PostAsync($"/api/home/cages/{cageId}/pickup/{ratId}", null);
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     public async Task<(bool Success, string? Error)> InstallBowlFromDrawerAsync(string cageId, string itemId)
     {
         var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bowls", new { itemId }, JsonOpts);
