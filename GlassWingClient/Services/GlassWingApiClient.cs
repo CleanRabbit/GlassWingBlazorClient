@@ -183,6 +183,23 @@ public class GlassWingApiClient(HttpClient http)
         });
     }
 
+    // --- Weather (Task 16) ---
+
+    public async Task PostWeatherReadingAsync(double temperatureCelsius, double relativeHumidityPercent)
+    {
+        await http.PostAsJsonAsync("/api/home/weather",
+            new { temperatureCelsius, relativeHumidityPercent }, JsonOpts);
+    }
+
+    public async Task<(WeatherAccessoryPurchaseResponse? Result, string? Error)> BuyWeatherAccessoryAsync(string weatherAccessoryTypeId, int anchorIndex)
+    {
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/weather-accessory", new { weatherAccessoryTypeId, anchorIndex }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<WeatherAccessoryPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
     // --- OTC Medication (Task 22) ---
 
     public async Task<(MedicationDevicePurchaseResponse? Result, string? Error)> BuyMedicationDeviceAsync(string medicationTypeId, int anchorIndex)

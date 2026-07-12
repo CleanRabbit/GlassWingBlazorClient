@@ -240,11 +240,28 @@ public record HomeResponse(
     SeasonalEventSummaryInfo? SeasonalEvent = null,
     string[]? VetTreatmentNotifications = null,
     HomeMedicationDeviceInfo[]? MedicationDevices = null,
-    string[]? MischiefNotifications = null);
+    string[]? MischiefNotifications = null,
+    HomeWeatherAccessoryInfo[]? WeatherAccessories = null,
+    WeatherInfo? Weather = null);
 
 // --- Vet/OTC home extras ---
 
 public record HomeMedicationDeviceInfo(string Id, string TypeId, int AnchorIndex, double Cleanliness, double Condition);
+
+// --- Weather (Task 16) ---
+
+public record HomeWeatherAccessoryInfo(string Id, string TypeId, int AnchorIndex, double Cleanliness, double Condition);
+
+public record WeatherConditionsInfo(bool TooWarm, bool TooCold, bool TooHumid, bool TooDry);
+public record WeatherAccessoriesSummary(bool HasAirConditioning, bool HasRadiator, bool HasDehumidifier, bool HasHumidifier);
+
+public record WeatherInfo(
+    double? TemperatureCelsius,
+    double? RelativeHumidityPercent,
+    DateTime? UpdatedAt,
+    bool IsEnabled,
+    WeatherConditionsInfo Conditions,
+    WeatherAccessoriesSummary Accessories);
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
@@ -386,7 +403,11 @@ public record GameSettingsResponse(
     int? VetDiagnosisFee = null,
     int? AdoptionFee = null,
     int? MaxAdoptionSurrenders = null,
-    int? AdoptionPoolMaxRandomCount = null);
+    int? AdoptionPoolMaxRandomCount = null,
+    double? WeatherTooWarmCelsius = null,
+    double? WeatherTooColdCelsius = null,
+    double? WeatherTooHumidPercent = null,
+    double? WeatherTooDryPercent = null);
 
 // --- Home extras ---
 
@@ -420,7 +441,11 @@ public record ShopCatalogueResponse(
     ShopFoodType[] Foods,
     ShopCarryCaseType[]? CarryCases = null,
     ShopStorageDrawersType[]? StorageDrawers = null,
-    ShopMedicationType[]? Medications = null);
+    ShopMedicationType[]? Medications = null,
+    ShopWeatherAccessoryType[]? WeatherAccessories = null);
+
+public record ShopWeatherAccessoryType(string Id, string Name, string Description, string Suppresses, int InGamePrice);
+public record WeatherAccessoryPurchaseResponse(string AccessoryId, string TypeId, int AnchorIndex, decimal NewBalance);
 
 // Delivery: "HomeAccessoryDevice" | "DirectDose". The /api/shop endpoint serializes the
 // domain MedicationType record directly (no DTO mapping), so property names match verbatim.

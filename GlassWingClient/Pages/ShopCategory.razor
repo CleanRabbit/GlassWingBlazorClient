@@ -354,6 +354,41 @@ else
                 }
             </div>
         }
+        else if (Category == "weather")
+        {
+            var occupied   = GetOccupiedSlots();
+            var totalSlots = home?.TotalAccessorySlots ?? 0;
+            var hasSpace   = totalSlots > occupied.Count;
+
+            @foreach (var item in catalogue.WeatherAccessories ?? [])
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@item.Name</h5>
+                            <p class="text-muted small mb-2">@item.Description</p>
+                            <p class="small mb-2"><span class="text-muted">Suppresses</span> @item.Suppresses</p>
+                            <div class="d-flex justify-content-between align-items-center mt-auto">
+                                <strong>@item.InGamePrice cr</strong>
+                                @if (anchorPanelItemId != item.Id)
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick='() => OpenAnchorPanel(item.Id, item.Name, item.InGamePrice, "weather-accessory")'
+                                            disabled="@(busy || (home is not null && !hasSpace))"
+                                            title="@(home is not null && !hasSpace ? "No free home slots" : null)">
+                                        Buy
+                                    </button>
+                                }
+                            </div>
+                            @if (anchorPanelItemId == item.Id)
+                            {
+                                @AnchorPanel(occupied, totalSlots)
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
 
     </div>
 }
@@ -391,6 +426,7 @@ else
         "food-bins"        => "Food Storage",
         "food"             => "Food",
         "medications"      => "Medications",
+        "weather"          => "Weather Control",
         _                  => "Shop"
     };
 
@@ -399,7 +435,7 @@ else
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         var catalogueTask = Api.GetShopCatalogueAsync();
         Task<(HomeResponse?, string?)>? homeTask = null;
-        if (Category is "carry-cases" or "storage-drawers" or "food-bins" or "food" or "medications")
+        if (Category is "carry-cases" or "storage-drawers" or "food-bins" or "food" or "medications" or "weather")
             homeTask = Api.GetHomeAsync();
         catalogue = await catalogueTask;
         if (homeTask is not null)
@@ -491,6 +527,7 @@ else
         foreach (var sd in home.StorageDrawers ?? []) set.Add(sd.AnchorIndex);
         foreach (var fb in home.FoodStorageBins ?? []) set.Add(fb.AnchorIndex);
         foreach (var md in home.MedicationDevices ?? []) set.Add(md.AnchorIndex);
+        foreach (var wa in home.WeatherAccessories ?? []) set.Add(wa.AnchorIndex);
         return set;
     }
 
@@ -516,6 +553,12 @@ else
         else if (anchorPanelCategory == "medication-device")
         {
             var (result, err) = await Api.BuyMedicationDeviceAsync(anchorPanelItemId!, anchorIndex);
+            if (result is null) { error = err; busy = false; return; }
+            newBalance = result.NewBalance;
+        }
+        else if (anchorPanelCategory == "weather-accessory")
+        {
+            var (result, err) = await Api.BuyWeatherAccessoryAsync(anchorPanelItemId!, anchorIndex);
             if (result is null) { error = err; busy = false; return; }
             newBalance = result.NewBalance;
         }

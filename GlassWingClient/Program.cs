@@ -19,5 +19,6 @@ builder.Services.AddTransient<GlassWingAuthHandler>();
 builder.Services.AddHttpClient<GlassWingApiClient>(client =>
     client.BaseAddress = new Uri(apiBase))
     .AddHttpMessageHandler<GlassWingAuthHandler>();
+builder.Services.AddHttpClient<OpenMeteoClient>();
 
 await builder.Build().RunAsync();

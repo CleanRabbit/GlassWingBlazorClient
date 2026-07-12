@@ -6,6 +6,7 @@
 @inject PlayerStateService PlayerState
 @inject RewardToastService RewardToasts
 @inject ProgressStateService ProgressState
+@inject OpenMeteoClient Weather
 
 <PageTitle>Home — GlassWing</PageTitle>
 
@@ -35,6 +36,56 @@ else
                 <span><span class="text-muted">Illness</span> @(gameSettings.IllnessProgressionScale)×</span>
             </div>
         </details>
+    }
+
+    @if (home!.Weather is { IsEnabled: true } weather)
+    {
+        <div class="card mb-3">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="fw-semibold small">Weather</span>
+                    @if (weather.TemperatureCelsius is { } temp && weather.RelativeHumidityPercent is { } humidity)
+                    {
+                        <span class="small">@temp.ToString("F1")°C · @humidity.ToString("F0")% RH</span>
+                    }
+                    else
+                    {
+                        <span class="small text-muted">No reading yet</span>
+                    }
+                    @if (weather.Conditions.TooWarm)
+                    {
+                        <span class="badge bg-warning text-dark">Too Warm</span>
+                    }
+                    @if (weather.Conditions.TooCold)
+                    {
+                        <span class="badge bg-info text-dark">Too Cold</span>
+                    }
+                    @if (weather.Conditions.TooHumid)
+                    {
+                        <span class="badge bg-warning text-dark">Too Humid</span>
+                    }
+                    @if (weather.Conditions.TooDry)
+                    {
+                        <span class="badge bg-info text-dark">Too Dry</span>
+                    }
+                    @if (!weather.Conditions.TooWarm && !weather.Conditions.TooCold && !weather.Conditions.TooHumid && !weather.Conditions.TooDry)
+                    {
+                        <span class="badge bg-light text-success border">Comfortable</span>
+                    }
+                </div>
+                @{
+                    var installedWeatherAccessories = new List<string>();
+                    if (weather.Accessories.HasAirConditioning) installedWeatherAccessories.Add("Air Conditioning");
+                    if (weather.Accessories.HasRadiator) installedWeatherAccessories.Add("Radiator");
+                    if (weather.Accessories.HasDehumidifier) installedWeatherAccessories.Add("Dehumidifier");
+                    if (weather.Accessories.HasHumidifier) installedWeatherAccessories.Add("Humidifier");
+                }
+                @if (installedWeatherAccessories.Count > 0)
+                {
+                    <div class="text-muted small mt-1">Installed: @string.Join(", ", installedWeatherAccessories)</div>
+                }
+            </div>
+        </div>
     }
 
     @if (home!.LifeStageNotifications is { Length: > 0 })
@@ -613,6 +664,8 @@ else
     {
         try
         {
+            await ReportWeatherIfEnabledAsync();
+
             var homeTask      = Api.GetHomeAsync();
             var settingsTask  = Api.GetGameSettingsAsync();
             var catalogueTask = Api.GetShopCatalogueAsync();
@@ -642,6 +695,30 @@ else
         finally
         {
             loaded = true;
+        }
+    }
+
+    // Best-effort only — any failure here (profile fetch, geocoding, forecast lookup, or the
+    // report itself) just means neutral weather values stay in effect server-side. Must never
+    // surface as a home-load error.
+    async Task ReportWeatherIfEnabledAsync()
+    {
+        try
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not { WeatherEnabled: true }) return;
+
+            var coords = await Weather.GeocodeAsync(profile.Country, profile.State);
+            if (coords is null) return;
+
+            var reading = await Weather.GetCurrentWeatherAsync(coords.Value.Latitude, coords.Value.Longitude);
+            if (reading is null) return;
+
+            await Api.PostWeatherReadingAsync(reading.Value.TemperatureCelsius, reading.Value.RelativeHumidityPercent);
+        }
+        catch
+        {
+            // Neutral values remain in effect — see method summary.
         }
     }
 
