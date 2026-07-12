@@ -8,12 +8,20 @@
 
 <PageTitle>@(rat?.Name ?? "Rat") — GlassWing</PageTitle>
 
-@if (rat is null)
+@if (!loaded)
 {
     <p>Loading...</p>
 }
+else if (rat is null)
+{
+    <div class="alert alert-danger">Rat not found.</div>
+}
 else
 {
+    @if (isPublicView)
+    {
+        <div class="alert alert-info py-2">Viewing another player's rat — read-only.</div>
+    }
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="/rats">Rats</a></li>
@@ -56,7 +64,7 @@ else
             {
                 <span class="badge bg-warning text-dark" title="Hasn't been played with recently">Lonely</span>
             }
-            @if (rat.LifeStage != "Weening")
+            @if (rat.LifeStage != "Weening" && !isPublicView)
             {
                 <button class="btn btn-sm btn-outline-secondary" @onclick="StartRename">Rename</button>
                 <button class="btn btn-sm btn-outline-danger" @onclick="() => showRetireConfirm = true">Retire</button>
@@ -287,23 +295,46 @@ else
                                 <span class="text-muted small">None</span>
                             }
                         </div>
-                        <div class="mt-3">
-                            <p class="text-muted small mb-1">Accessory</p>
-                            <select class="form-select form-select-sm d-inline-block" style="max-width:200px"
-                                    value="@(rat.ActiveCosmeticId ?? "")"
-                                    @onchange="e => SetRatCosmeticAsync(e.Value?.ToString())"
-                                    disabled="@cosmeticBusy">
-                                <option value="">— none —</option>
-                                @foreach (var acc in ownedRatAccessories)
+                        @if (!isPublicView)
+                        {
+                            <div class="mt-3">
+                                <p class="text-muted small mb-1">Accessory</p>
+                                <select class="form-select form-select-sm d-inline-block" style="max-width:200px"
+                                        value="@(rat.ActiveCosmeticId ?? "")"
+                                        @onchange="e => SetRatCosmeticAsync(e.Value?.ToString())"
+                                        disabled="@cosmeticBusy">
+                                    <option value="">— none —</option>
+                                    @foreach (var acc in ownedRatAccessories)
+                                    {
+                                        <option value="@acc.Id">@acc.Name</option>
+                                    }
+                                </select>
+                                @if (cosmeticError is not null)
                                 {
-                                    <option value="@acc.Id">@acc.Name</option>
+                                    <div class="text-danger small mt-1">@cosmeticError</div>
                                 }
-                            </select>
-                            @if (cosmeticError is not null)
-                            {
-                                <div class="text-danger small mt-1">@cosmeticError</div>
-                            }
-                        </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Lineage (Task 13) *@
+    @if (rat.Ancestry is { Father: not null } or { Mother: not null })
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-3 text-muted">Lineage</h6>
+                <div class="d-flex gap-4 flex-wrap">
+                    <div>
+                        <div class="text-muted small mb-1">Father</div>
+                        @AncestorNodeView(rat.Ancestry.Father, "father", 1)
+                    </div>
+                    <div>
+                        <div class="text-muted small mb-1">Mother</div>
+                        @AncestorNodeView(rat.Ancestry.Mother, "mother", 1)
                     </div>
                 </div>
             </div>
@@ -311,7 +342,7 @@ else
     }
 
     @* Training *@
-    @if (!rat.IsRetired && rat.LifeStage != "Infant" && !rat.IsNursing)
+    @if (!rat.IsRetired && rat.LifeStage != "Infant" && !rat.IsNursing && !isPublicView)
     {
         <h5>Training</h5>
         <div class="d-flex gap-2 mb-2">
@@ -360,6 +391,8 @@ else
                         }
                     </div>
 
+                    @if (!isPublicView)
+                    {
                     <div class="col-md-6">
                         <p class="text-muted small mb-2">Training</p>
                         @if (!trickPickerOpen)
@@ -441,13 +474,14 @@ else
                             </div>
                         }
                     </div>
+                    }
                 </div>
             </div>
         </div>
     }
 
     @* Breeding *@
-    @if (!rat.IsRetired && rat.LifeStage == "Adult" && !rat.IsNursing)
+    @if (!rat.IsRetired && rat.LifeStage == "Adult" && !rat.IsNursing && !isPublicView)
     {
         <h5 class="mt-4">Breeding</h5>
         @if (rat.Sex == "Male")
@@ -625,10 +659,16 @@ else
     bool otcBusy;
     string? otcMessage;
 
+    // Ancestry (Task 13)
+    bool loaded;
+    bool isPublicView;
+    readonly HashSet<string> expandedAncestorBranches = [];
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         await Task.WhenAll(LoadRatAsync(), LoadSettingsAsync(), LoadMaleRatsAsync(), LoadCosmeticsAsync(), LoadTrickCatalogueAsync(), LoadHomeAsync(), LoadShopCatalogueAsync());
+        loaded = true;
     }
 
     async Task LoadHomeAsync()
@@ -771,6 +811,42 @@ else
     async Task LoadRatAsync()
     {
         rat = await Api.GetRatAsync(Id);
+        isPublicView = false;
+        if (rat is null)
+        {
+            // Not found, or not owned by the caller — RatsModule.GetRatAsync 404s in both
+            // cases. Fall back to the public projection before giving up entirely.
+            var pub = await Api.GetPublicRatAsync(Id);
+            if (pub is not null)
+            {
+                isPublicView = true;
+                rat = new RatResponse(
+                    Id: pub.Id,
+                    Name: pub.Name,
+                    OwnerId: pub.OwnerId,
+                    HealthState: null,
+                    Phenotype: pub.Phenotype,
+                    TricksLearned: pub.TricksLearned,
+                    IsRetired: pub.IsRetired,
+                    RetiredAt: pub.RetiredAt,
+                    RetirementReason: pub.RetirementReason,
+                    RetiresAt: pub.RetiresAt,
+                    Sex: pub.Sex,
+                    LifeStage: pub.LifeStage,
+                    MotherId: pub.MotherId,
+                    FatherId: pub.FatherId,
+                    SprintAbility: pub.SprintAbility,
+                    AgilityAbility: pub.AgilityAbility,
+                    EnduranceAbility: pub.EnduranceAbility,
+                    SprintPotential: pub.SprintPotential,
+                    AgilityPotential: pub.AgilityPotential,
+                    EndurancePotential: pub.EndurancePotential,
+                    DateOfBirth: pub.DateOfBirth,
+                    ActiveCosmeticId: pub.ActiveCosmeticId,
+                    Traits: pub.Traits,
+                    Ancestry: pub.Ancestry);
+            }
+        }
         newName = rat?.Name ?? "";
         if (rat is { IsPregnant: true, FatherId: { } fatherId })
             fatherName = (await Api.GetRatAsync(fatherId))?.Name ?? "another rat";
@@ -1144,5 +1220,88 @@ else
         if (c.Pattern is not null) parts.Add(c.Pattern);
         if (c.Type is not null and not "Standard") parts.Add(c.Type);
         return parts.Count > 0 ? string.Join(" ", parts) : "—";
+    }
+
+    // Ancestry (Task 13). depth 1 = parent, 2 = grandparent, 3 = great-grandparent,
+    // 4 = great-great-grandparent (the API bounds the tree at 4 generations). Generations 1-2
+    // render unconditionally; the depth-2 -> depth-3 transition is the single "show more
+    // ancestors" toggle per branch — once expanded, depth 3 -> 4 auto-renders too (one toggle
+    // reveals both remaining generations, not one toggle per level).
+    void ToggleAncestorBranch(string key)
+    {
+        if (!expandedAncestorBranches.Add(key)) expandedAncestorBranches.Remove(key);
+    }
+
+    RenderFragment AncestorNodeView(AncestorNode? node, string branchKey, int depth) => __builder =>
+    {
+        if (node is null)
+        {
+            <span class="text-muted small">— unknown —</span>
+            return;
+        }
+
+        <div class="border rounded p-2 mb-1" style="min-width:200px">
+            <div class="fw-semibold small">
+                @node.Name @(node.Sex == "Male" ? "♂" : "♀")
+                @if (node.IsEnriched)
+                {
+                    <span class="badge bg-dark ms-1">Retired@(node.RetirementReason is not null ? $" — {RetirementReasonLabel(node.RetirementReason)}" : "")</span>
+                }
+            </div>
+
+            @if (!node.IsEnriched)
+            {
+                <a href="/rats/@node.RatId" class="small">Live — view</a>
+            }
+            else
+            {
+                @if (node.DateOfBirth is { } dob)
+                {
+                    <div class="text-muted small">Born @dob.ToString("dd MMM yyyy")</div>
+                }
+                @if (node.SprintAbility is not null)
+                {
+                    <div class="text-muted small">
+                        Spr @node.SprintAbility?.ToString("F1")/@node.SprintPotential
+                        · Agi @node.AgilityAbility?.ToString("F1")/@node.AgilityPotential
+                        · End @node.EnduranceAbility?.ToString("F1")/@node.EndurancePotential
+                    </div>
+                }
+                @if (node.Coat is { } coat)
+                {
+                    <div class="text-muted small">@AncestorCoatDescription(coat)</div>
+                }
+            }
+
+            @if (node.Father is not null || node.Mother is not null)
+            {
+                var autoExpand = depth != 2 || expandedAncestorBranches.Contains(branchKey);
+                @if (autoExpand)
+                {
+                    <div class="mt-2 ps-2 border-start d-flex gap-2">
+                        @AncestorNodeView(node.Father, branchKey + "f", depth + 1)
+                        @AncestorNodeView(node.Mother, branchKey + "m", depth + 1)
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-link btn-sm p-0 mt-1" @onclick="() => ToggleAncestorBranch(branchKey)">
+                        Show more ancestors
+                    </button>
+                }
+            }
+        </div>
+    };
+
+    static string AncestorCoatDescription(CoatSnapshot c)
+    {
+        var desc = c.Pattern is not "Self" ? $"{c.Colour} {c.Pattern}" : c.Colour;
+        var markers = new System.Collections.Generic.List<string>();
+        if (c.HasBlaze) markers.Add("Blaze");
+        if (c.IsRoan) markers.Add("Roan");
+        if (c.IsDownunder) markers.Add("Downunder");
+        if (c.Silvering is "Light") markers.Add("Light Silvering");
+        if (c.Silvering is "Heavy") markers.Add("Heavy Silvering");
+        return markers.Count > 0 ? $"{desc} ({string.Join(", ", markers)})" : desc;
     }
 }

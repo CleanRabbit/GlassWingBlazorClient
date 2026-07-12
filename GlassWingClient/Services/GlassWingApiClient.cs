@@ -50,6 +50,17 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    // Any authenticated player may view any rat's public projection — no ownership check.
+    // 404 only if the rat truly doesn't exist. Used as a fallback when GetRatAsync 404s
+    // (either genuinely not found, or exists but isn't owned by the caller).
+    public async Task<PublicRatResponse?> GetPublicRatAsync(string id)
+    {
+        var resp = await http.GetAsync($"/api/rats/{id}/public");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<PublicRatResponse>(JsonOpts)
+            : null;
+    }
+
     public async Task<RatResponse?> CreateStarterAsync()
     {
         var resp = await http.PostAsync("/api/rats/starter", null);

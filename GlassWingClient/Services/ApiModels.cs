@@ -40,7 +40,78 @@ public record RatResponse(
     // mere presence can't be used to fingerprint claimed rats via schema inspection.
     string? SecretMessage = null,
     // Personality traits (Tasks 24-26) — flat collection, e.g. ["Fussy", "Bold", "Playful"].
-    string[]? Traits = null);
+    string[]? Traits = null,
+    // Ancestry (Task 13) — empty ({father: null, mother: null}) for starter/agency-adopted rats.
+    Ancestry? Ancestry = null);
+
+// --- Ancestry (Task 13) ---
+
+public record Ancestry(AncestorNode? Father, AncestorNode? Mother);
+
+// Lightweight (IsEnriched == false) until the ancestor is sold/retired/surrendered, at which
+// point every field below is a permanent, self-contained snapshot. Recursive, bounded to 4
+// generations total from the viewed rat.
+public record AncestorNode(
+    string RatId,
+    string Name,
+    string Sex,
+    bool IsEnriched,
+    DateTime? DateOfBirth,
+    DateTime? RetiredAt,
+    string? RetirementReason,
+    double? SprintAbility,
+    double? AgilityAbility,
+    double? EnduranceAbility,
+    int? SprintPotential,
+    int? AgilityPotential,
+    int? EndurancePotential,
+    CoatSnapshot? Coat,
+    AncestorNode? Father,
+    AncestorNode? Mother);
+
+// Display-relevant coat fields only, snapshotted at enrichment time. Field is Silvering (not
+// SilveringIntensity) — matches the live CoatPhenotype.Silvering name exactly, confirmed
+// against the real backend Ancestry.cs rather than the design doc's own open question about it.
+public record CoatSnapshot(
+    string Colour,
+    string Pattern,
+    string? HoodQuality,
+    string Silvering,
+    bool HasBlaze,
+    bool IsRoan,
+    bool IsDownunder);
+
+// GET /api/rats/{id}/public — any authenticated player may view any rat's public projection.
+// Deliberately a separate, honestly-typed record (not RatResponse with fields nulled out) so
+// RatDetail.razor can tell "hidden because not owned" apart from "genuinely empty."
+public record PublicRatResponse(
+    string Id,
+    string Name,
+    string OwnerId,
+    DateTime DateOfBirth,
+    DateTime CreatedAt,
+    string? FatherId,
+    string? MotherId,
+    int Generation,
+    string Sex,
+    string LifeStage,
+    RatPhenotype Phenotype,
+    double SprintAbility,
+    double AgilityAbility,
+    double EnduranceAbility,
+    int SprintPotential,
+    int AgilityPotential,
+    int EndurancePotential,
+    string[] Traits,
+    string[] TricksLearned,
+    DateTime RetiresAt,
+    bool IsRetired,
+    DateTime? RetiredAt,
+    string? RetirementReason,
+    Ancestry? Ancestry,
+    string? ActiveCosmeticId,
+    double? HuskyProgress = null,
+    bool IsBandedHusky = false);
 
 // --- Tricks (Task 19) ---
 
