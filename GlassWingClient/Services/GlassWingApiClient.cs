@@ -493,6 +493,16 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
+    // --- Welfare ---
+
+    public async Task<WelfareStatus?> GetWelfareStatusAsync()
+    {
+        var resp = await http.GetAsync("/api/welfare/status");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<WelfareStatus>(JsonOpts)
+            : null;
+    }
+
     // --- Game ---
 
     public async Task<GameSettingsResponse?> GetGameSettingsAsync()
@@ -714,6 +724,48 @@ public class GlassWingApiClient(HttpClient http)
         if (resp.IsSuccessStatusCode) return (true, null);
         var body = await resp.Content.ReadAsStringAsync();
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    // --- Adoption (Task 14) ---
+
+    public async Task<PagedResponse<PooledRatResponse>?> GetAdoptionPoolAsync(string? sex = null, int page = 1, int pageSize = 20)
+    {
+        var url = $"/api/adoption/?page={page}&pageSize={pageSize}";
+        if (sex is not null) url += $"&sex={Uri.EscapeDataString(sex)}";
+        var resp = await http.GetAsync(url);
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<PagedResponse<PooledRatResponse>>(JsonOpts)
+            : null;
+    }
+
+    public async Task<PooledRatResponse[]?> GetRandomAdoptionPoolAsync(string sex, int count)
+    {
+        var resp = await http.GetAsync($"/api/adoption/random?sex={Uri.EscapeDataString(sex)}&count={count}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<PooledRatResponse[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(AdoptResponse? Result, string? Error)> AdoptRatAsync(string ratId)
+    {
+        var resp = await http.PostAsync($"/api/adoption/{ratId}/adopt", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<AdoptResponse>(JsonOpts), null);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return (null, "That rat was just adopted by someone else — try another.");
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
+    }
+
+    public async Task<(SurrenderResponse? Result, string? Error)> SurrenderRatAsync(string ratId)
+    {
+        var resp = await http.PostAsync($"/api/adoption/{ratId}/surrender", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<SurrenderResponse>(JsonOpts), null);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return (null, "Rat not found.");
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
     }
 
     // --- Player ---

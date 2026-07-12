@@ -1,0 +1,425 @@
+@page "/adoption"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+
+<PageTitle>Adoption Agency — GlassWing</PageTitle>
+<h1 class="mb-4">Adoption Agency</h1>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else
+{
+    @if (freeCarryCases == 0)
+    {
+        <div class="alert alert-warning mb-4">
+            You need a free carry case to adopt a rat. <a href="/shop/carry-cases" class="alert-link">Buy one from the shop.</a>
+        </div>
+    }
+
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "browse" ? "active" : "")" @onclick='() => activeTab = "browse"'>
+                Browse
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "surrender" ? "active" : "")" @onclick="SwitchToSurrenderTabAsync">
+                Surrender
+            </button>
+        </li>
+    </ul>
+
+    @if (activeTab == "browse")
+    {
+        <div class="btn-group btn-group-sm mb-3">
+            <button class="btn @(sexFilter is null ? "btn-primary" : "btn-outline-primary")" @onclick="() => ChangeSexFilterAsync(null)">All</button>
+            <button class="btn @(sexFilter == "Male" ? "btn-primary" : "btn-outline-primary")" @onclick='() => ChangeSexFilterAsync("Male")'>Male</button>
+            <button class="btn @(sexFilter == "Female" ? "btn-primary" : "btn-outline-primary")" @onclick='() => ChangeSexFilterAsync("Female")'>Female</button>
+        </div>
+
+        @if (poolLoading)
+        {
+            <p class="text-muted small">Loading pool...</p>
+        }
+        else if (pool.Length == 0)
+        {
+            <p class="text-muted">No rats available@(sexFilter is not null ? $" ({sexFilter})" : "") right now.</p>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="GenerateRandomAsync" disabled="@generating">
+                @(generating ? "Generating..." : "Generate rats")
+            </button>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var entry in pool)
+                {
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <h6 class="card-title mb-0">@entry.Name</h6>
+                                    <span class="badge bg-light text-dark border small">@entry.Sex</span>
+                                </div>
+                                <p class="small text-muted mb-2">@entry.Source · @CoatBadgeString(entry.Phenotype?.Coat)</p>
+                                <div class="d-flex gap-3 small text-muted mb-3">
+                                    <span>Sp @entry.SprintAbility.ToString("F1")</span>
+                                    <span>Ag @entry.AgilityAbility.ToString("F1")</span>
+                                    <span>En @entry.EnduranceAbility.ToString("F1")</span>
+                                </div>
+                                <div class="mt-auto">
+                                    <button class="btn btn-sm btn-primary" @onclick="() => OpenAdoptConfirm(entry)" disabled="@(freeCarryCases == 0)">
+                                        Adopt
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPageAsync" disabled="@(page <= 1 || poolLoading)">Previous</button>
+                <span class="text-muted small">Page @(page) · @totalCount total</span>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="NextPageAsync" disabled="@((long)page * pageSize >= totalCount || poolLoading)">Next</button>
+            </div>
+        }
+    }
+    else
+    {
+        <p class="text-muted small mb-3">Surrenders used: @surrenderCount / @(settings?.MaxAdoptionSurrenders ?? 20)</p>
+        @if (myRatsLoading)
+        {
+            <p class="text-muted small">Loading your rats...</p>
+        }
+        else if (myRats.Length == 0)
+        {
+            <p class="text-muted">You have no rats to surrender.</p>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var r in myRats)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                        <div>
+                            <div class="fw-semibold">@r.Name</div>
+                            <div class="small text-muted">@r.Sex · @r.LifeStage</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger flex-shrink-0"
+                                @onclick="() => OpenSurrenderConfirm(r)"
+                                disabled="@surrenderRowBusy.Contains(r.Id)">
+                            Surrender
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@if (adoptTarget is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Adopt @adoptTarget.Name?</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAdoptModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (FeeWillBeWaived)
+                    {
+                        <p class="mb-1">Fee: <strong class="text-success">Free</strong> <span class="text-muted small">(waived)</span></p>
+                    }
+                    else
+                    {
+                        <p class="mb-1">Fee: <strong>@((settings?.AdoptionFee ?? 0).ToString("N0")) cr</strong></p>
+                    }
+                    <p class="text-muted small mb-0">The rat will be placed into a free carry case.</p>
+                    @if (freeCarryCases == 0)
+                    {
+                        <div class="alert alert-warning py-2 mb-0 mt-3">You need a free carry case first.</div>
+                    }
+                    @if (adoptError is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-0 mt-3">@adoptError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseAdoptModal" disabled="@adoptBusy">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ConfirmAdoptAsync" disabled="@(adoptBusy || freeCarryCases == 0)">
+                        @(adoptBusy ? "Adopting..." : "Confirm Adoption")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (surrenderTarget is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Surrender @surrenderTarget.Name?</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSurrenderModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">This rat will leave your home and enter the shared adoption pool. This cannot be undone.</p>
+                    <p class="text-muted small mt-2 mb-0">Surrenders used: @surrenderCount / @(settings?.MaxAdoptionSurrenders ?? 20)</p>
+                    @if (surrenderModalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-0 mt-3">@surrenderModalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseSurrenderModal" disabled="@surrenderModalBusy">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmSurrenderAsync" disabled="@surrenderModalBusy">
+                        @(surrenderModalBusy ? "Surrendering..." : "Confirm Surrender")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (toastMessage is not null)
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+        <div class="alert @(toastIsError ? "alert-danger" : "alert-success") alert-dismissible shadow">
+            @toastMessage
+            <button type="button" class="btn-close" @onclick="() => toastMessage = null"></button>
+        </div>
+    </div>
+}
+
+@code {
+    bool loaded;
+    string? loadError;
+    string activeTab = "browse";
+    int freeCarryCases;
+    GameSettingsResponse? settings;
+    WelfareStatus? welfareStatus;
+    string? toastMessage;
+    bool toastIsError;
+
+    bool FeeWillBeWaived =>
+        welfareStatus is { } ws && (ws.PostTutorialAdoption.FeeWaived || ws.MinimumRatCount.FeeWaived
+            || (ws.LoneCage.Active && ws.LoneCage.Type == "DifferentSex"));
+
+    // Browse
+    string? sexFilter;
+    PooledRatResponse[] pool = [];
+    bool poolLoading;
+    int page = 1;
+    readonly int pageSize = 20;
+    long totalCount;
+    bool generating;
+
+    PooledRatResponse? adoptTarget;
+    bool adoptBusy;
+    string? adoptError;
+
+    // Surrender
+    RatResponse[] myRats = [];
+    bool myRatsLoaded;
+    bool myRatsLoading;
+    int surrenderCount;
+    readonly HashSet<string> surrenderRowBusy = [];
+    RatResponse? surrenderTarget;
+    bool surrenderModalBusy;
+    string? surrenderModalError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+        var homeTask = Api.GetHomeAsync();
+        var settingsTask = Api.GetGameSettingsAsync();
+        var profileTask = Api.GetPlayerProfileAsync();
+        var welfareTask = Api.GetWelfareStatusAsync();
+        await Task.WhenAll(homeTask, settingsTask, profileTask, welfareTask);
+
+        var (home, _) = await homeTask;
+        settings = await settingsTask;
+        welfareStatus = await welfareTask;
+        var profile = await profileTask;
+
+        freeCarryCases = home?.CarryCases?.Count(c => c.RatId is null) ?? 0;
+        surrenderCount = profile?.SurrenderCount ?? 0;
+        if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+
+        await LoadPoolAsync();
+        loaded = true;
+    }
+
+    async Task LoadPoolAsync()
+    {
+        poolLoading = true;
+        var result = await Api.GetAdoptionPoolAsync(sexFilter, page, pageSize);
+        if (result is not null)
+        {
+            pool = result.Items;
+            totalCount = result.TotalCount;
+        }
+        else
+        {
+            loadError = "Failed to load adoption pool.";
+        }
+        poolLoading = false;
+    }
+
+    async Task ChangeSexFilterAsync(string? sex)
+    {
+        sexFilter = sex;
+        page = 1;
+        await LoadPoolAsync();
+    }
+
+    async Task PrevPageAsync()
+    {
+        if (page <= 1) return;
+        page--;
+        await LoadPoolAsync();
+    }
+
+    async Task NextPageAsync()
+    {
+        if ((long)page * pageSize >= totalCount) return;
+        page++;
+        await LoadPoolAsync();
+    }
+
+    async Task GenerateRandomAsync()
+    {
+        generating = true;
+        // The random endpoint requires a concrete sex — default to Female when "All" is
+        // selected, matching the general fallback count from game settings either way.
+        var sex = sexFilter ?? "Female";
+        var count = settings?.AdoptionPoolMaxRandomCount ?? 6;
+        var result = await Api.GetRandomAdoptionPoolAsync(sex, count);
+        if (result is not null)
+        {
+            pool = pool.Concat(result).ToArray();
+            totalCount += result.Length;
+        }
+        generating = false;
+    }
+
+    void OpenAdoptConfirm(PooledRatResponse entry)
+    {
+        adoptTarget = entry;
+        adoptError = null;
+    }
+
+    void CloseAdoptModal()
+    {
+        adoptTarget = null;
+        adoptError = null;
+    }
+
+    async Task ConfirmAdoptAsync()
+    {
+        if (adoptTarget is null) return;
+        adoptBusy = true;
+        adoptError = null;
+        var target = adoptTarget;
+        var (result, err) = await Api.AdoptRatAsync(target.Id);
+        if (result is not null)
+        {
+            pool = pool.Where(p => p.Id != target.Id).ToArray();
+            totalCount = Math.Max(0, totalCount - 1);
+            freeCarryCases = Math.Max(0, freeCarryCases - 1);
+            adoptTarget = null;
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            toastIsError = false;
+            toastMessage = "Adopted! Check your carry cases on the Home page.";
+        }
+        else if (err is not null && err.Contains("someone else"))
+        {
+            // Pool entry claimed by another player between browse and confirm — remove the
+            // stale card and backfill from page 1 rather than leaving a dead entry visible.
+            pool = pool.Where(p => p.Id != target.Id).ToArray();
+            adoptTarget = null;
+            toastIsError = true;
+            toastMessage = err;
+            page = 1;
+            await LoadPoolAsync();
+        }
+        else
+        {
+            adoptError = err ?? "Adoption failed.";
+        }
+        adoptBusy = false;
+    }
+
+    async Task SwitchToSurrenderTabAsync()
+    {
+        activeTab = "surrender";
+        if (!myRatsLoaded) await LoadMyRatsAsync();
+    }
+
+    async Task LoadMyRatsAsync()
+    {
+        myRatsLoading = true;
+        myRats = (await Api.ListRatsAsync() ?? []).Where(r => !r.IsRetired).ToArray();
+        myRatsLoaded = true;
+        myRatsLoading = false;
+    }
+
+    void OpenSurrenderConfirm(RatResponse r)
+    {
+        surrenderTarget = r;
+        surrenderModalError = null;
+    }
+
+    void CloseSurrenderModal()
+    {
+        surrenderTarget = null;
+        surrenderModalError = null;
+    }
+
+    async Task ConfirmSurrenderAsync()
+    {
+        if (surrenderTarget is null) return;
+        surrenderModalBusy = true;
+        surrenderModalError = null;
+        var target = surrenderTarget;
+        surrenderRowBusy.Add(target.Id);
+        var (result, err) = await Api.SurrenderRatAsync(target.Id);
+        if (result is not null)
+        {
+            myRats = myRats.Where(r => r.Id != target.Id).ToArray();
+            surrenderCount++;
+            surrenderTarget = null;
+            toastIsError = false;
+            toastMessage = $"{target.Name} surrendered to the Adoption Agency.";
+        }
+        else
+        {
+            surrenderModalError = err ?? "Surrender failed.";
+        }
+        surrenderRowBusy.Remove(target.Id);
+        surrenderModalBusy = false;
+    }
+
+    static string CoatBadgeString(CoatPhenotype? c)
+    {
+        if (c is null) return "—";
+        var parts = new System.Collections.Generic.List<string>();
+        if (c.BaseColor is not null) parts.Add(c.BaseColor);
+        if (c.Pattern is not null) parts.Add(c.Pattern);
+        if (c.Type is not null and not "Standard") parts.Add(c.Type);
+        return parts.Count > 0 ? string.Join(" ", parts) : "—";
+    }
+}

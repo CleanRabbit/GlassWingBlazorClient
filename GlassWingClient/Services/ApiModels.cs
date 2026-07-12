@@ -383,7 +383,10 @@ public record GameSettingsResponse(
     int? SocialLearningAptitudeThreshold = null,
     int? MaxPlaySessionSeconds = null,
     double? MaxActiveProgressPerRatPerDay = null,
-    int? VetDiagnosisFee = null);
+    int? VetDiagnosisFee = null,
+    int? AdoptionFee = null,
+    int? MaxAdoptionSurrenders = null,
+    int? AdoptionPoolMaxRandomCount = null);
 
 // --- Home extras ---
 
@@ -470,6 +473,35 @@ public record MarketplaceListingStats(double? Sprint, double? Agility, double? E
 public record CreateListingResponse(string ListingId, DateTime ExpiresAt, decimal NewBalance);
 public record BuyListingResponse(string CarryCaseId, decimal NewBalance);
 
+// --- Adoption (Task 14) ---
+
+public record PagedResponse<T>(T[] Items, long TotalCount, int Page, int PageSize);
+
+// Flat stat/potential fields, not a nested Stats object — matches the real PooledRatResponse
+// (AdoptionModule.cs), not the design doc's guessed AdoptionPoolEntryResponse/AdoptionPoolStats.
+public record PooledRatResponse(
+    string Id, string Name, string Source, DateTime DateOfBirth, string Sex, string LifeStage,
+    RatPhenotype Phenotype, double SprintAbility, double AgilityAbility, double EnduranceAbility,
+    int SprintPotential, int AgilityPotential, int EndurancePotential,
+    double WeightGrams, string? ActiveCosmeticId);
+
+public record AdoptResponse(RatResponse Rat, string CarryCaseId);
+public record SurrenderResponse(int RemainingSurrenders);
+
+// --- Welfare (Task 15 groundwork — fee-waiver flags read by the Adoption page's modal) ---
+
+public record PostTutorialAdoptionStatus(bool Active, bool FemaleOnly, bool FeeWaived);
+public record MinimumRatCountStatus(bool Active, bool FeeWaived);
+public record LoneCageStatus(bool Active, string? Type, LoneCageRef? CageA, LoneCageRef? CageB);
+public record LoneCageRef(string CageId, string Sex);
+
+public record WelfareStatus(
+    string? ActiveBlock,
+    string? BlockScope,
+    PostTutorialAdoptionStatus PostTutorialAdoption,
+    MinimumRatCountStatus MinimumRatCount,
+    LoneCageStatus LoneCage);
+
 // --- Player ---
 
 public record PlayerProfileResponse(
@@ -481,4 +513,5 @@ public record PlayerProfileResponse(
     string? State = null,
     bool WeatherEnabled = false,
     string? ActiveTitleId = null,
-    string? ActiveTitleText = null);
+    string? ActiveTitleText = null,
+    int SurrenderCount = 0);
