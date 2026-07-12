@@ -29,7 +29,37 @@ public record RatResponse(
     bool IsNursing = false,
     bool IsProtective = false,
     DateTime DateOfBirth = default,
-    string? ActiveCosmeticId = null);
+    string? ActiveCosmeticId = null,
+    TrickTrainingStateDto? CurrentTrickTraining = null,
+    BondingInfo? Bonding = null,
+    PlaySessionInfo? PlaySession = null);
+
+// --- Tricks (Task 19) ---
+
+public record TrickCatalogueResponse(TrickCategoryGroup[] Categories);
+public record TrickCategoryGroup(string Category, TrickDefinition[] Tricks);
+public record TrickDefinition(
+    string Id, string Name, int Tier, double BaseScore, int AptitudeThreshold,
+    TrickRatStatus[] Rats);
+
+// Status: Learned | InTraining | SocialLearning | Locked | NotStarted
+public record TrickRatStatus(string RatId, string RatName, string Status, double Progress, int Aptitude);
+
+public record TrickTrainingStateDto(string TrickId, double Progress, DateTime StartedAt);
+public record BondingInfo(double CurrentLevel, double Capacity);
+
+// --- Play Sessions (Task 20) ---
+
+public record PlaySessionInfo(
+    string? CurrentTrickId, double? TrickProgress, double DailyProgressRemaining,
+    DateTime? LastPlaySessionAt, bool SolitudeActive);
+
+public record PlaySessionAchievementInfo(string Id, string Name, int? Currency, string? TitleId, string? CosmeticId);
+
+public record PlaySessionResponse(
+    string TrickId, double ProgressBefore, double ProgressAfter, double ProgressGained,
+    bool CappedByDailyLimit, bool TrickLearned, double BondingBefore, double BondingAfter,
+    PlaySessionAchievementInfo[] NewAchievements);
 
 public record LifeStageNotification(string RatId, string RatName, string PreviousStage, string NewStage, string Message);
 
@@ -214,7 +244,9 @@ public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays);
 public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays);
 public record InstalledAccessoryInfo(string Id, string Name, string? Description);
 
-public record RatSummary(string Id, string Name, string LifeStage = "Adult", bool IsNursing = false, bool IsProtective = false);
+public record RatSummary(
+    string Id, string Name, string LifeStage = "Adult", bool IsNursing = false, bool IsProtective = false,
+    PlaySessionInfo? PlaySession = null);
 
 // --- Game ---
 
@@ -229,7 +261,11 @@ public record GameSettingsResponse(
     double? RatLifespanDays = null,
     double? CriticalHealthRetirementThresholdDays = null,
     double? RetirementWarningEarlyDays = null,
-    double? RetirementWarningLateDays = null);
+    double? RetirementWarningLateDays = null,
+    int? TrickMaxRoutineSize = null,
+    int? SocialLearningAptitudeThreshold = null,
+    int? MaxPlaySessionSeconds = null,
+    double? MaxActiveProgressPerRatPerDay = null);
 
 // --- Home extras ---
 

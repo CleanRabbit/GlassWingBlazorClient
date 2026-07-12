@@ -1,0 +1,96 @@
+@page "/tricks"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Tricks — GlassWing</PageTitle>
+<h1 class="mb-4">Tricks</h1>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (data is null)
+{
+    <div class="alert alert-danger">Failed to load trick catalogue.</div>
+}
+else
+{
+    @foreach (var group in data.Categories)
+    {
+        <h4 class="mb-3">@CategoryLabel(group.Category)</h4>
+        <div class="row g-3 mb-4">
+            @foreach (var trick in group.Tricks)
+            {
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h5 class="card-title mb-0">@trick.Name</h5>
+                                <span class="badge bg-secondary">Tier @trick.Tier</span>
+                            </div>
+                            <p class="text-muted small mb-2">Requires @trick.AptitudeThreshold aptitude</p>
+                            @if (trick.Rats.Length == 0)
+                            {
+                                <span class="text-muted small">No rats yet</span>
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-wrap gap-1">
+                                    @foreach (var rs in trick.Rats)
+                                    {
+                                        <a href="/rats/@rs.RatId" class="badge @StatusBadgeClass(rs.Status) text-decoration-none"
+                                           title="@StatusTitle(rs, trick.AptitudeThreshold)">
+                                            @rs.RatName@StatusSuffix(rs)
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    bool loaded;
+    TrickCatalogueResponse? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        data = await Api.GetTrickCatalogueAsync();
+        loaded = true;
+    }
+
+    static string CategoryLabel(string category) => category switch
+    {
+        "ComplexSequence" => "Complex Sequence",
+        _                 => category
+    };
+
+    static string StatusBadgeClass(string status) => status switch
+    {
+        "Learned"        => "bg-success",
+        "InTraining"     => "bg-primary",
+        "SocialLearning" => "bg-info text-dark",
+        "Locked"         => "bg-secondary opacity-50",
+        _                => "bg-light text-dark border"
+    };
+
+    static string StatusSuffix(TrickRatStatus rs) => rs.Status switch
+    {
+        "Learned"                        => " ✓",
+        "InTraining" or "SocialLearning" => $" {rs.Progress:F0}%",
+        _                                => ""
+    };
+
+    static string StatusTitle(TrickRatStatus rs, int threshold) => rs.Status switch
+    {
+        "Locked"         => $"Requires {threshold} aptitude, has {rs.Aptitude}",
+        "SocialLearning" => "Picking up from cage-mates",
+        _                => ""
+    };
+}

@@ -121,7 +121,7 @@
                         @if (isActive)
                         {
                             <div class="mt-2 pt-2 border-top d-flex align-items-center gap-2 flex-wrap">
-                                <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId">
+                                <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId" @bind:after="OnActiveRatChanged">
                                     <option value="">— pick a rat —</option>
                                     @foreach (var r in rats?.Where(IsEventEligible) ?? [])
                                     {
@@ -133,11 +133,15 @@
                                     <span class="text-muted small">Entry: @fee cr</span>
                                 }
                                 <button class="btn btn-primary btn-sm"
-                                        disabled="@(string.IsNullOrEmpty(activeRatId) || entryBusy)"
+                                        disabled="@(string.IsNullOrEmpty(activeRatId) || entryBusy || RoutineInvalid(lobby.EventType))"
                                         @onclick="() => EnterLobbyAsync(lobby)">
                                     @(entryBusy ? "Entering..." : "Confirm")
                                 </button>
                             </div>
+                            @if (lobby.EventType == "TricksPerformance" && !string.IsNullOrEmpty(activeRatId))
+                            {
+                                @RoutineBuilder()
+                            }
                             @if (entryError is not null)
                             {
                                 <div class="alert alert-danger py-1 px-2 small mt-2 mb-0">@entryError</div>
@@ -173,7 +177,7 @@
                     @if (isActive)
                     {
                         <div class="mt-2 pt-2 border-top d-flex align-items-center gap-2 flex-wrap">
-                            <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId">
+                            <select class="form-select form-select-sm" style="max-width: 220px" @bind="activeRatId" @bind:after="OnActiveRatChanged">
                                 <option value="">— pick a rat —</option>
                                 @foreach (var r in rats?.Where(IsEventEligible) ?? [])
                                 {
@@ -181,11 +185,15 @@
                                 }
                             </select>
                             <button class="btn btn-success btn-sm"
-                                    disabled="@(string.IsNullOrEmpty(activeRatId) || createBusy)"
+                                    disabled="@(string.IsNullOrEmpty(activeRatId) || createBusy || RoutineInvalid(def.EventType))"
                                     @onclick="() => CreateLobbyAsync(def.Id)">
                                 @(createBusy ? "Creating..." : "Create & Enter")
                             </button>
                         </div>
+                        @if (def.EventType == "TricksPerformance" && !string.IsNullOrEmpty(activeRatId))
+                        {
+                            @RoutineBuilder()
+                        }
                         @if (createError is not null)
                         {
                             <div class="alert alert-danger py-1 px-2 small mt-2 mb-0">@createError</div>
@@ -236,12 +244,16 @@
         new("open-sprint",    "Open Sprint",    "Sprint"),
         new("open-agility",   "Open Agility",   "AgilityCourse"),
         new("open-endurance", "Open Endurance", "Endurance"),
+        new("open-tricks",    "Open Tricks",    "TricksPerformance"),
     ];
 
     RatResponse[]? rats;
     LobbyResponse[]? lobbies;
     bool lobbiesLoading = true;
     PlayerEventsResponse? myEvents;
+    GameSettingsResponse? settings;
+    TrickCatalogueResponse? trickCatalogue;
+    readonly HashSet<string> selectedRoutine = [];
 
     // Tutorial state
     bool tutorialExpanded;
@@ -262,11 +274,15 @@
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        await Task.WhenAll(LoadRatsAsync(), RefreshLobbiesAsync(), RefreshMyEventsAsync());
+        await Task.WhenAll(LoadRatsAsync(), RefreshLobbiesAsync(), RefreshMyEventsAsync(), LoadSettingsAsync(), LoadTrickCatalogueAsync());
     }
 
     async Task LoadRatsAsync() =>
         rats = await Api.ListRatsAsync() ?? [];
+
+    async Task LoadSettingsAsync() => settings = await Api.GetGameSettingsAsync();
+
+    async Task LoadTrickCatalogueAsync() => trickCatalogue = await Api.GetTrickCatalogueAsync();
 
     static bool IsEventEligible(RatResponse r) =>
         !r.IsRetired && !r.IsNursing && r.LifeStage is not ("Weening" or "Infant");
@@ -298,6 +314,7 @@
             activeCreateId = null;
             activeRatId = string.Empty;
             entryError = null;
+            selectedRoutine.Clear();
         }
     }
 
@@ -313,8 +330,54 @@
             activeLobbyId = null;
             activeRatId = string.Empty;
             createError = null;
+            selectedRoutine.Clear();
         }
     }
+
+    void OnActiveRatChanged() => selectedRoutine.Clear();
+
+    List<TrickDefinition> GetLearnedTricks(string ratId) =>
+        trickCatalogue?.Categories.SelectMany(c => c.Tricks)
+            .Where(t => t.Rats.Any(r => r.RatId == ratId && r.Status == "Learned"))
+            .ToList() ?? [];
+
+    bool RoutineInvalid(string eventType) =>
+        eventType == "TricksPerformance" && !string.IsNullOrEmpty(activeRatId) && selectedRoutine.Count == 0;
+
+    void ToggleRoutineTrick(string trickId, bool isChecked)
+    {
+        if (isChecked) selectedRoutine.Add(trickId);
+        else selectedRoutine.Remove(trickId);
+    }
+
+    RenderFragment RoutineBuilder() => __builder =>
+    {
+        var learnedTricks = GetLearnedTricks(activeRatId);
+        var maxSize = settings?.TrickMaxRoutineSize ?? 5;
+        <div class="mt-2 pt-2 border-top">
+            <div class="text-muted small mb-1">Routine — @selectedRoutine.Count / @maxSize selected</div>
+            @if (learnedTricks.Count == 0)
+            {
+                <p class="text-muted small mb-0">This rat hasn't learned any tricks yet.</p>
+            }
+            else
+            {
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var trick in learnedTricks)
+                    {
+                        var isChecked = selectedRoutine.Contains(trick.Id);
+                        var atCap = !isChecked && selectedRoutine.Count >= maxSize;
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="@("routine-" + trick.Id)"
+                                   checked="@isChecked" disabled="@atCap"
+                                   @onchange="e => ToggleRoutineTrick(trick.Id, e.Value is bool b && b)" />
+                            <label class="form-check-label small" for="@("routine-" + trick.Id)">@trick.Name</label>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    };
 
     async Task RunTutorialAsync()
     {
@@ -337,11 +400,13 @@
     {
         entryBusy = true;
         entryError = null;
-        var (success, error) = await Api.EnterLobbyAsync(lobby.Id, activeRatId);
+        var routine = lobby.EventType == "TricksPerformance" ? selectedRoutine.ToArray() : null;
+        var (success, error) = await Api.EnterLobbyAsync(lobby.Id, activeRatId, routine);
         if (success)
         {
             activeLobbyId = null;
             activeRatId = string.Empty;
+            selectedRoutine.Clear();
             if (EntryFee(lobby.EventDefinitionId) > 0)
             {
                 var profile = await Api.GetPlayerProfileAsync();
@@ -360,11 +425,14 @@
     {
         createBusy = true;
         createError = null;
-        var (lobby, error) = await Api.CreateLobbyAsync(definitionId, activeRatId);
+        var def = PlayerInitiatedDefs.FirstOrDefault(d => d.Id == definitionId);
+        var routine = def?.EventType == "TricksPerformance" ? selectedRoutine.ToArray() : null;
+        var (lobby, error) = await Api.CreateLobbyAsync(definitionId, activeRatId, routine);
         if (lobby is not null)
         {
             activeCreateId = null;
             activeRatId = string.Empty;
+            selectedRoutine.Clear();
             await Task.WhenAll(RefreshLobbiesAsync(), RefreshMyEventsAsync());
         }
         else
@@ -383,16 +451,18 @@
 
     static string TypeBadgeClass(string eventType) => eventType switch
     {
-        "Sprint"        => "bg-warning text-dark",
-        "AgilityCourse" => "bg-success",
-        "Endurance"     => "bg-info text-dark",
-        _               => "bg-secondary"
+        "Sprint"            => "bg-warning text-dark",
+        "AgilityCourse"     => "bg-success",
+        "Endurance"         => "bg-info text-dark",
+        "TricksPerformance" => "bg-dark",
+        _                   => "bg-secondary"
     };
 
     static string TypeLabel(string eventType) => eventType switch
     {
-        "AgilityCourse" => "Agility",
-        _               => eventType
+        "AgilityCourse"     => "Agility",
+        "TricksPerformance" => "Tricks",
+        _                   => eventType
     };
 
     static string StatusBadgeClass(string status) => status switch

@@ -207,6 +207,10 @@ else
                                         {
                                             <text> </text><span title="Protective mother — free-roam unavailable too">🛡️</span>
                                         }
+                                        @if (chipRat.PlaySession?.SolitudeActive == true)
+                                        {
+                                            <text> </text><span class="text-warning" title="Hasn't been played with recently">●</span>
+                                        }
                                     </a>
                                 }
                                 else

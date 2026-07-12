@@ -119,12 +119,44 @@ public class GlassWingApiClient(HttpClient http)
         try
         {
             var err = JsonSerializer.Deserialize<ApiErrorResponse>(body, JsonOpts);
-            if (err?.Reason is not null)
-                return (err.Error ?? err.Reason, err.Reason);
+            if (err?.Error is not null)
+                return (err.Error, err.Reason);
         }
         catch (JsonException) { /* not a structured error body */ }
 
         return (body, null);
+    }
+
+    // --- Tricks (Task 19) ---
+
+    public async Task<TrickCatalogueResponse?> GetTrickCatalogueAsync()
+    {
+        var resp = await http.GetAsync("/api/tricks/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<TrickCatalogueResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(RatResponse? Rat, string? Error, string? Reason)> SetTrickTrainingAsync(string ratId, string? trickId)
+    {
+        var resp = await http.PutAsJsonAsync($"/api/rats/{ratId}/trick-training", new { trickId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null, null);
+        var (error, reason) = await ParseErrorAsync(resp);
+        return (null, error, reason);
+    }
+
+    // --- Play Sessions (Task 20) ---
+
+    public async Task<(PlaySessionResponse? Result, string? Error, string? Reason)> SubmitPlaySessionAsync(
+        string ratId, string trickId, int durationSeconds)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/rats/{ratId}/play-session",
+            new { trickId, durationSeconds }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<PlaySessionResponse>(JsonOpts), null, null);
+        var (error, reason) = await ParseErrorAsync(resp);
+        return (null, error, reason);
     }
 
     // --- Home ---
@@ -404,18 +436,18 @@ public class GlassWingApiClient(HttpClient http)
         return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(LobbyResponse? Lobby, string? Error)> CreateLobbyAsync(string eventDefinitionId, string ratId)
+    public async Task<(LobbyResponse? Lobby, string? Error)> CreateLobbyAsync(string eventDefinitionId, string ratId, string[]? routine = null)
     {
-        var resp = await http.PostAsJsonAsync("/api/events/lobbies", new { eventDefinitionId, ratId }, JsonOpts);
+        var resp = await http.PostAsJsonAsync("/api/events/lobbies", new { eventDefinitionId, ratId, routine }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (await resp.Content.ReadFromJsonAsync<LobbyResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> EnterLobbyAsync(string lobbyId, string ratId)
+    public async Task<(bool Success, string? Error)> EnterLobbyAsync(string lobbyId, string ratId, string[]? routine = null)
     {
-        var resp = await http.PostAsJsonAsync($"/api/events/{lobbyId}/enter", new { ratId }, JsonOpts);
+        var resp = await http.PostAsJsonAsync($"/api/events/{lobbyId}/enter", new { ratId, routine }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (true, null);
         var body = await resp.Content.ReadAsStringAsync();
