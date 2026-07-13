@@ -1,0 +1,331 @@
+@page "/admin/players/{Id}"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Player @(player?.Username ?? Id) — Admin — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
+        <li class="breadcrumb-item"><a href="/admin/players">Player Lookup</a></li>
+        <li class="breadcrumb-item active">@(player?.Username ?? Id)</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p>Loading...</p>
+}
+else if (player is null)
+{
+    <div class="alert alert-danger">Player not found.</div>
+}
+else
+{
+    <h1 class="mb-1">@player.Username</h1>
+    <p class="text-muted">
+        @(player.Email ?? "no email")
+        @if (player.Role == "Admin")
+        {
+            <span class="badge bg-warning text-dark ms-2">Admin</span>
+        }
+        · joined @player.CreatedAt.ToString("dd MMM yyyy")
+    </p>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Currency</h6>
+                    <p class="fs-4 mb-3">@player.Currency.ToString("N0") cr</p>
+
+                    <div class="row g-2 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label small mb-0">Delta (+/-)</label>
+                            <input type="number" class="form-control form-control-sm" style="width:120px" @bind="currencyDelta" />
+                        </div>
+                        <div class="col">
+                            <label class="form-label small mb-0">Reason (required)</label>
+                            <input class="form-control form-control-sm" @bind="currencyReason" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-primary" @onclick="AdjustCurrencyAsync" disabled="@currencyBusy">
+                                @(currencyBusy ? "..." : "Apply")
+                            </button>
+                        </div>
+                    </div>
+                    @if (currencyError is not null)
+                    {
+                        <div class="text-danger small mt-2">@currencyError</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Grant a Rat</h6>
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col">
+                            <label class="form-label small mb-0">Explicit genotype (optional)</label>
+                            <input class="form-control form-control-sm" placeholder="leave blank for a starter genotype" @bind="grantGenotype" />
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label small mb-0">Sex (if no genotype)</label>
+                            <select class="form-select form-select-sm" @bind="grantSex">
+                                <option value="">Random</option>
+                                <option value="Female">Female</option>
+                                <option value="Male">Male</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col">
+                            <label class="form-label small mb-0">Reason (required)</label>
+                            <input class="form-control form-control-sm" @bind="grantReason" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-primary" @onclick="GrantRatAsync" disabled="@grantBusy">
+                                @(grantBusy ? "..." : "Grant")
+                            </button>
+                        </div>
+                    </div>
+                    @if (grantError is not null)
+                    {
+                        <div class="text-danger small mt-2">@grantError</div>
+                    }
+                    @if (grantSuccessMessage is not null)
+                    {
+                        <div class="text-success small mt-2">@grantSuccessMessage</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h6 class="text-muted mb-2">Owned Rats (@player.Rats.Length)</h6>
+    @if (player.Rats.Length == 0)
+    {
+        <p class="text-muted small">No rats.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-hover mb-4">
+            <thead>
+                <tr><th>Name</th><th>Sex</th><th>Life Stage</th><th>Sprint</th><th>Agility</th><th>Endurance</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in player.Rats)
+                {
+                    <tr>
+                        <td>@r.Name</td>
+                        <td>@r.Sex</td>
+                        <td>@r.LifeStage</td>
+                        <td>@r.SprintAbility.ToString("F1")</td>
+                        <td>@r.AgilityAbility.ToString("F1")</td>
+                        <td>@r.EnduranceAbility.ToString("F1")</td>
+                        <td>
+                            @if (r.IsRetired) { <span class="badge bg-dark">Retired</span> }
+                            else if (r.IsPregnant) { <span class="badge bg-info text-dark">Pregnant</span> }
+                        </td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="/admin/rats/@r.Id">View</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h6 class="text-muted mb-2">Recent Admin Actions</h6>
+    @if (auditLog.Length == 0)
+    {
+        <p class="text-muted small mb-4">No recorded actions for this player yet.</p>
+    }
+    else
+    {
+        <table class="table table-sm mb-4">
+            <thead>
+                <tr><th>When</th><th>Admin</th><th>Action</th><th>Reason</th><th>Detail</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in auditLog)
+                {
+                    <tr>
+                        <td class="text-nowrap">@entry.Timestamp.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                        <td>@entry.AdminPlayerId</td>
+                        <td>@entry.Action</td>
+                        <td>@entry.Reason</td>
+                        <td class="small text-muted">@entry.Detail</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @* Raw edit escape hatch — visually distinct, collapsed by default (Task 32 §4/§5). *@
+    <div class="card border-danger mt-4">
+        <div class="card-header bg-danger bg-opacity-10 d-flex justify-content-between align-items-center"
+             style="cursor:pointer" @onclick="ToggleRawPanel">
+            <span class="fw-semibold text-danger">Raw Edit (bypasses all validation)</span>
+            <span>@(rawPanelOpen ? "▲" : "▼")</span>
+        </div>
+        @if (rawPanelOpen)
+        {
+            <div class="card-body">
+                <p class="text-muted small">
+                    Partial JSON merge applied directly to the player's Mongo document. Only the
+                    fields present in the textarea below are changed — everything else is left
+                    alone. No blocklist applies to players (unlike rats).
+                </p>
+                @if (rawLoading)
+                {
+                    <p>Loading raw document...</p>
+                }
+                else
+                {
+                    <textarea class="form-control font-monospace small" rows="12" @bind="rawJson"></textarea>
+                    <div class="row g-2 align-items-end mt-2">
+                        <div class="col">
+                            <label class="form-label small mb-0">Reason (required)</label>
+                            <input class="form-control form-control-sm" @bind="rawReason" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-danger" @onclick="SubmitRawEditAsync" disabled="@rawBusy">
+                                @(rawBusy ? "..." : "Apply Raw Edit")
+                            </button>
+                        </div>
+                    </div>
+                    @if (rawError is not null)
+                    {
+                        <div class="text-danger small mt-2">@rawError</div>
+                    }
+                    @if (rawSuccess)
+                    {
+                        <div class="text-success small mt-2">Applied.</div>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    bool loaded;
+    AdminPlayerDetailResponse? player;
+    AdminAuditLogEntryDto[] auditLog = [];
+
+    int currencyDelta;
+    string currencyReason = "";
+    bool currencyBusy;
+    string? currencyError;
+
+    string grantGenotype = "";
+    string grantSex = "";
+    string grantReason = "";
+    bool grantBusy;
+    string? grantError;
+    string? grantSuccessMessage;
+
+    bool rawPanelOpen;
+    bool rawLoading;
+    string rawJson = "";
+    string rawReason = "";
+    bool rawBusy;
+    string? rawError;
+    bool rawSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/home"); return; }
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        loaded = false;
+        player = await Api.AdminGetPlayerAsync(Id);
+        auditLog = await Api.AdminGetPlayerAuditLogAsync(Id) ?? [];
+        loaded = true;
+    }
+
+    async Task AdjustCurrencyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currencyReason))
+        {
+            currencyError = "Reason is required.";
+            return;
+        }
+
+        currencyBusy = true;
+        currencyError = null;
+        var (newBalance, error) = await Api.AdminAdjustCurrencyAsync(Id, currencyDelta, currencyReason);
+        currencyBusy = false;
+
+        if (error is not null) { currencyError = error; return; }
+
+        currencyDelta = 0;
+        currencyReason = "";
+        await LoadAsync();
+    }
+
+    async Task GrantRatAsync()
+    {
+        if (string.IsNullOrWhiteSpace(grantReason))
+        {
+            grantError = "Reason is required.";
+            return;
+        }
+
+        grantBusy = true;
+        grantError = null;
+        grantSuccessMessage = null;
+        var (rat, error) = await Api.AdminGrantRatAsync(
+            Id, grantReason,
+            string.IsNullOrWhiteSpace(grantGenotype) ? null : grantGenotype,
+            string.IsNullOrWhiteSpace(grantSex) ? null : grantSex);
+        grantBusy = false;
+
+        if (error is not null) { grantError = error; return; }
+
+        grantSuccessMessage = $"Granted \"{rat!.Name}\" (id {rat.Id}).";
+        grantGenotype = "";
+        grantSex = "";
+        grantReason = "";
+        await LoadAsync();
+    }
+
+    async Task ToggleRawPanel()
+    {
+        rawPanelOpen = !rawPanelOpen;
+        if (rawPanelOpen && string.IsNullOrEmpty(rawJson))
+        {
+            rawLoading = true;
+            rawJson = await Api.AdminGetPlayerRawAsync(Id) ?? "";
+            rawLoading = false;
+        }
+    }
+
+    async Task SubmitRawEditAsync()
+    {
+        if (string.IsNullOrWhiteSpace(rawReason))
+        {
+            rawError = "Reason is required.";
+            return;
+        }
+
+        rawBusy = true;
+        rawError = null;
+        rawSuccess = false;
+        var (success, error) = await Api.AdminPatchPlayerRawAsync(Id, rawReason, rawJson);
+        rawBusy = false;
+
+        if (!success) { rawError = error; return; }
+
+        rawSuccess = true;
+        rawJson = await Api.AdminGetPlayerRawAsync(Id) ?? rawJson;
+        await LoadAsync();
+    }
+}

@@ -50,10 +50,17 @@
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="profile">Profile</NavLink>
         </div>
+        @if (Auth.IsAdmin)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="admin">Admin</NavLink>
+            </div>
+        }
     </nav>
 </div>
 
 @code {
+    [Inject] AuthStateService Auth { get; set; } = default!;
     [Inject] ProgressStateService ProgressState { get; set; } = default!;
 
     private bool collapseNavMenu = true;

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace GlassWingClient.Services;
 
 public record AuthResponse(string Token, string PlayerId, string Username);
@@ -38,6 +40,10 @@ public record RatResponse(
     PlaySessionInfo? PlaySession = null,
     OtcProtectionInfo[]? OtcProtections = null,
     OtcMedicationCooldownInfo[]? OtcMedicationCooldowns = null,
+    // Set once vitality first becomes Critical; cleared on recovery. Wasn't previously exposed
+    // client-side — Task 32's Admin/RatDetail.razor is the first consumer that needs to show it
+    // (making it visible exactly why Clear Lock deliberately never touches this field).
+    DateTime? CriticalSince = null,
     // Secret rat easter egg (Task 23) — present only on the rename response that freshly
     // claims a transformation; absent (not null) from the JSON on every other response, so its
     // mere presence can't be used to fingerprint claimed rats via schema inspection.
@@ -624,3 +630,28 @@ public record PlayerProfileResponse(
     string? ActiveTitleId = null,
     string? ActiveTitleText = null,
     int SurrenderCount = 0);
+
+// --- Admin (Task 32) ---
+
+public record AdminPlayerSummaryResponse(string Id, string Username, string? Email, int Currency, string Role);
+
+public record AdminRatSummaryResponse(
+    string Id, string Name, string Sex, string LifeStage, bool IsRetired, bool IsPregnant,
+    double SprintAbility, double AgilityAbility, double EnduranceAbility);
+
+public record AdminPlayerDetailResponse(
+    string Id, string Username, string? Email, int Currency, string Role, DateTime CreatedAt,
+    AdminRatSummaryResponse[] Rats);
+
+public record AdjustCurrencyResponseDto(int NewBalance);
+
+public record AdminAuditLogEntryDto(
+    string Id, string AdminPlayerId, string TargetPlayerId, string Action, string Reason,
+    string? Detail, DateTime Timestamp);
+
+// DefaultValue/CurrentValue are JsonElement rather than a concrete CLR type — GameSettings spans
+// several unrelated types (double/int/DateTime) in one flat field list, so this is read
+// generically for display and passed back through Admin/Settings.razor's own type-appropriate
+// edit control per row.
+public record AdminGameSettingFieldDto(
+    string Name, JsonElement DefaultValue, JsonElement CurrentValue, bool IsOverridden, bool IsAnchorField);

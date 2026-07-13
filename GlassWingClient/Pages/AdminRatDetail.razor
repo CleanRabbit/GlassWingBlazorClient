@@ -1,0 +1,333 @@
+@page "/admin/rats/{Id}"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Rat @(rat?.Name ?? Id) — Admin — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
+        <li class="breadcrumb-item"><a href="/admin/players">Player Lookup</a></li>
+        <li class="breadcrumb-item active">@(rat?.Name ?? Id)</li>
+    </ol>
+</nav>
+
+@if (!loaded)
+{
+    <p>Loading...</p>
+}
+else if (rat is null)
+{
+    <div class="alert alert-danger">Rat not found.</div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-3 mb-1">
+        <h1 class="mb-0">@rat.Name</h1>
+        @if (rat.IsRetired)
+        {
+            <span class="badge bg-dark">Retired</span>
+            <span class="text-muted">@rat.RetirementReason @(rat.RetiredAt is { } ra ? $"· {ra:dd MMM yyyy}" : "")</span>
+        }
+        else
+        {
+            <span class="badge bg-info text-dark">@rat.LifeStage</span>
+        }
+    </div>
+    <p class="text-muted">
+        Owner: <a href="/admin/players/@rat.OwnerId">@rat.OwnerId</a> · born @rat.DateOfBirth.ToString("dd MMM yyyy")
+    </p>
+
+    @* Shared read-only display — same components Pages/RatDetail.razor renders (Task 32 §4). *@
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <RatAbilityCard SprintAbility="rat.SprintAbility" AgilityAbility="rat.AgilityAbility" EnduranceAbility="rat.EnduranceAbility"
+                             SprintPotential="rat.SprintPotential" AgilityPotential="rat.AgilityPotential" EndurancePotential="rat.EndurancePotential" />
+        </div>
+        <div class="col-md-4">
+            <RatPersonalityCard Traits="rat.Traits" />
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Health (read-only)</h6>
+                    @if (rat.HealthState is { } h)
+                    {
+                        <span class="badge @VitalityBadgeClass(h.Vitality) fs-6 mb-2">@(h.Vitality ?? "Unknown")</span>
+                        <table class="table table-sm mb-2">
+                            <tbody>
+                                <tr><th>Weight</th><td>@rat.WeightGrams.ToString("F1")g</td></tr>
+                                <tr><th>Length</th><td>@h.BodyLengthCm.ToString("F1")cm</td></tr>
+                                <tr><th>Critical since</th><td>@(rat.CriticalSince?.ToString("dd MMM yyyy HH:mm") ?? "—")</td></tr>
+                            </tbody>
+                        </table>
+                        @if (h.ActiveIllnesses is { Length: > 0 })
+                        {
+                            <p class="small mb-1 text-danger">Active illnesses:</p>
+                            @foreach (var illness in h.ActiveIllnesses)
+                            {
+                                <div class="small mb-1">
+                                    @(illness.IsDiagnosed ? illness.Name : "Undiagnosed") — since @illness.StartedAt.ToString("dd MMM")
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <span class="small text-muted">No active illnesses</span>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <RatAppearanceCard Phenotype="rat.Phenotype" />
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Clear Stuck Cooldown/Lock</h6>
+                    <p class="text-muted small">
+                        Resets training cooldown, breeding cooldown, and accumulated stress
+                        periods only. Does <strong>not</strong> touch Critical-health state.
+                    </p>
+                    <div class="row g-2 align-items-end">
+                        <div class="col">
+                            <label class="form-label small mb-0">Reason (required)</label>
+                            <input class="form-control form-control-sm" @bind="clearLockReason" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-primary" @onclick="ClearLockAsync" disabled="@clearLockBusy">
+                                @(clearLockBusy ? "..." : "Clear Lock")
+                            </button>
+                        </div>
+                    </div>
+                    @if (clearLockError is not null)
+                    {
+                        <div class="text-danger small mt-2">@clearLockError</div>
+                    }
+                    @if (clearLockSuccess)
+                    {
+                        <div class="text-success small mt-2">Cleared.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 border-danger">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-danger">Force-Retire (permanent)</h6>
+                    <p class="text-muted small">
+                        For duplicated/corrupted/should-leave-play records. Exactly like every
+                        other retirement path — <strong>this cannot ever be undone</strong>, by
+                        anyone, including via raw edit.
+                    </p>
+                    @if (rat.IsRetired)
+                    {
+                        <span class="text-muted small">Already retired.</span>
+                    }
+                    else
+                    {
+                        <div class="row g-2 align-items-end">
+                            <div class="col">
+                                <label class="form-label small mb-0">Reason (required)</label>
+                                <input class="form-control form-control-sm" @bind="retireReason" />
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => showRetireConfirm = true" disabled="@retireBusy">
+                                    @(retireBusy ? "..." : "Force-Retire")
+                                </button>
+                            </div>
+                        </div>
+                        @if (showRetireConfirm)
+                        {
+                            <div class="alert alert-danger mt-2 py-2">
+                                <p class="mb-2 small">
+                                    This permanently retires <strong>@rat.Name</strong>. There is no
+                                    undo, curated or raw. Are you sure?
+                                </p>
+                                <button class="btn btn-sm btn-danger me-2" @onclick="AdminRetireAsync">Yes, retire permanently</button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => showRetireConfirm = false">Cancel</button>
+                            </div>
+                        }
+                        @if (retireError is not null)
+                        {
+                            <div class="text-danger small mt-2">@retireError</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Raw edit escape hatch — visually distinct, collapsed by default (Task 32 §4/§5). *@
+    <div class="card border-danger mt-2">
+        <div class="card-header bg-danger bg-opacity-10 d-flex justify-content-between align-items-center"
+             style="cursor:pointer" @onclick="ToggleRawPanel">
+            <span class="fw-semibold text-danger">Raw Edit (bypasses all validation)</span>
+            <span>@(rawPanelOpen ? "▲" : "▼")</span>
+        </div>
+        @if (rawPanelOpen)
+        {
+            <div class="card-body">
+                <p class="text-muted small">
+                    Partial JSON merge applied directly to the rat's Mongo document. One
+                    hard-coded exception: <code>RetiredAt</code>, <code>RetirementReason</code>,
+                    and <code>CriticalSince</code> are always rejected here, server-side — even
+                    through raw edit — because retirement is a one-way trapdoor by design.
+                </p>
+                @if (rawLoading)
+                {
+                    <p>Loading raw document...</p>
+                }
+                else
+                {
+                    <textarea class="form-control font-monospace small" rows="12" @bind="rawJson"></textarea>
+                    <div class="row g-2 align-items-end mt-2">
+                        <div class="col">
+                            <label class="form-label small mb-0">Reason (required)</label>
+                            <input class="form-control form-control-sm" @bind="rawReason" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-danger" @onclick="SubmitRawEditAsync" disabled="@rawBusy">
+                                @(rawBusy ? "..." : "Apply Raw Edit")
+                            </button>
+                        </div>
+                    </div>
+                    @if (rawError is not null)
+                    {
+                        <div class="text-danger small mt-2">@rawError</div>
+                    }
+                    @if (rawSuccess)
+                    {
+                        <div class="text-success small mt-2">Applied.</div>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    bool loaded;
+    RatResponse? rat;
+
+    string clearLockReason = "";
+    bool clearLockBusy;
+    string? clearLockError;
+    bool clearLockSuccess;
+
+    string retireReason = "";
+    bool retireBusy;
+    string? retireError;
+    bool showRetireConfirm;
+
+    bool rawPanelOpen;
+    bool rawLoading;
+    string rawJson = "";
+    string rawReason = "";
+    bool rawBusy;
+    string? rawError;
+    bool rawSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/home"); return; }
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        loaded = false;
+        rat = await Api.AdminGetRatAsync(Id);
+        loaded = true;
+    }
+
+    async Task ClearLockAsync()
+    {
+        if (string.IsNullOrWhiteSpace(clearLockReason))
+        {
+            clearLockError = "Reason is required.";
+            return;
+        }
+
+        clearLockBusy = true;
+        clearLockError = null;
+        clearLockSuccess = false;
+        var (updated, error) = await Api.AdminClearLockAsync(Id, clearLockReason);
+        clearLockBusy = false;
+
+        if (error is not null) { clearLockError = error; return; }
+
+        clearLockSuccess = true;
+        clearLockReason = "";
+        rat = updated;
+    }
+
+    async Task AdminRetireAsync()
+    {
+        showRetireConfirm = false;
+        if (string.IsNullOrWhiteSpace(retireReason))
+        {
+            retireError = "Reason is required.";
+            return;
+        }
+
+        retireBusy = true;
+        retireError = null;
+        var (updated, error) = await Api.AdminRetireRatAsync(Id, retireReason);
+        retireBusy = false;
+
+        if (error is not null) { retireError = error; return; }
+
+        retireReason = "";
+        rat = updated;
+    }
+
+    async Task ToggleRawPanel()
+    {
+        rawPanelOpen = !rawPanelOpen;
+        if (rawPanelOpen && string.IsNullOrEmpty(rawJson))
+        {
+            rawLoading = true;
+            rawJson = await Api.AdminGetRatRawAsync(Id) ?? "";
+            rawLoading = false;
+        }
+    }
+
+    async Task SubmitRawEditAsync()
+    {
+        if (string.IsNullOrWhiteSpace(rawReason))
+        {
+            rawError = "Reason is required.";
+            return;
+        }
+
+        rawBusy = true;
+        rawError = null;
+        rawSuccess = false;
+        var (success, error) = await Api.AdminPatchRatRawAsync(Id, rawReason, rawJson);
+        rawBusy = false;
+
+        if (!success) { rawError = error; return; }
+
+        rawSuccess = true;
+        rawJson = await Api.AdminGetRatRawAsync(Id) ?? rawJson;
+        await LoadAsync();
+    }
+
+    static string VitalityBadgeClass(string? vitality) => vitality switch
+    {
+        "Healthy"  => "bg-success",
+        "Stressed" => "bg-warning text-dark",
+        "Pregnant" => "bg-info text-dark",
+        "Ill"      => "bg-danger",
+        "Critical" => "bg-danger",
+        _          => "bg-secondary"
+    };
+}

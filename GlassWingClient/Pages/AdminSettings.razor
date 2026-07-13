@@ -1,0 +1,315 @@
+@page "/admin/settings"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Settings — Admin — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
+        <li class="breadcrumb-item active">Settings</li>
+    </ol>
+</nav>
+
+<h1 class="mb-1">GameBalance Settings</h1>
+<p class="text-muted">
+    Changes apply live to every player immediately — no redeploy, no restart. Values are entered
+    as raw JSON matching the field's type (e.g. <code>24.5</code> for a number,
+    <code>"2026-02-01T00:00:00Z"</code> for a date).
+</p>
+
+@if (!loaded)
+{
+    <p>Loading...</p>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else
+{
+    @foreach (var group in Grouped())
+    {
+        <h6 class="text-muted mt-4 mb-2">@group.Category</h6>
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Default</th>
+                    <th>Current</th>
+                    <th></th>
+                    <th style="width:260px">Edit</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var field in group.Fields)
+                {
+                    <tr class="@(field.IsAnchorField ? "table-warning" : "")">
+                        <td>
+                            @field.Name
+                            @if (field.IsAnchorField)
+                            {
+                                <div class="small text-danger">
+                                    Anchor date — changing this immediately recomputes which
+                                    season/week is "current" for every player.
+                                </div>
+                            }
+                        </td>
+                        <td class="text-muted">@Render(field.DefaultValue)</td>
+                        <td>@Render(field.CurrentValue)</td>
+                        <td>
+                            @if (field.IsOverridden)
+                            {
+                                <span class="badge bg-info text-dark">overridden</span>
+                            }
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" placeholder="new raw JSON value"
+                                   @bind="editValues[field.Name]" />
+                        </td>
+                        <td class="text-nowrap">
+                            <button class="btn btn-sm btn-primary me-1" @onclick="() => SetAsync(field.Name)" disabled="@(busyField == field.Name)">
+                                Save
+                            </button>
+                            @if (field.IsOverridden)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ResetAsync(field.Name)" disabled="@(busyField == field.Name)">
+                                    Reset
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                    @if (fieldErrors.TryGetValue(field.Name, out var err))
+                    {
+                        <tr>
+                            <td colspan="6" class="text-danger small">@err</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    bool loaded;
+    string? loadError;
+    AdminGameSettingFieldDto[] fields = [];
+    readonly Dictionary<string, string> editValues = new();
+    readonly Dictionary<string, string> fieldErrors = new();
+    string? busyField;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/home"); return; }
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        loaded = false;
+        var result = await Api.AdminGetSettingsAsync();
+        loaded = true;
+
+        if (result is null)
+        {
+            loadError = "Failed to load settings.";
+            return;
+        }
+
+        fields = result;
+    }
+
+    async Task SetAsync(string fieldName)
+    {
+        if (!editValues.TryGetValue(fieldName, out var rawValue) || string.IsNullOrWhiteSpace(rawValue))
+        {
+            fieldErrors[fieldName] = "Enter a value first.";
+            return;
+        }
+
+        busyField = fieldName;
+        fieldErrors.Remove(fieldName);
+        var (success, error) = await Api.AdminSetSettingAsync(fieldName, rawValue);
+        busyField = null;
+
+        if (!success)
+        {
+            fieldErrors[fieldName] = error ?? "Failed to apply.";
+            return;
+        }
+
+        editValues.Remove(fieldName);
+        await LoadAsync();
+    }
+
+    async Task ResetAsync(string fieldName)
+    {
+        busyField = fieldName;
+        fieldErrors.Remove(fieldName);
+        var (success, error) = await Api.AdminRemoveSettingOverrideAsync(fieldName);
+        busyField = null;
+
+        if (!success)
+        {
+            fieldErrors[fieldName] = error ?? "Failed to reset.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    static string Render(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.String => value.GetString() ?? "",
+        System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False => value.GetRawText(),
+        System.Text.Json.JsonValueKind.Number => value.GetRawText(),
+        _ => value.GetRawText()
+    };
+
+    record FieldGroup(string Category, AdminGameSettingFieldDto[] Fields);
+
+    // Task 32 §4 — grouped the same way GameSettings.cs's own doc comments already group these
+    // fields (biological/training/breeding/weather/personality/etc.), since the server doesn't
+    // return a category — it's presentation-only, not a domain concept worth a new API field for.
+    // Unmapped fields fall into "Other" rather than being dropped, mirroring the server's own
+    // "log and skip, never throw" tolerance for fields it doesn't recognize (Task32_Design.md §5).
+    static readonly Dictionary<string, string> Category = new()
+    {
+        ["BiologicalScale"] = "Biological Time",
+
+        ["FoodConsumptionScale"] = "Mechanic Scales",
+        ["WaterConsumptionScale"] = "Mechanic Scales",
+        ["TrainingCooldownScale"] = "Mechanic Scales",
+        ["TrainingSessionMinutes"] = "Mechanic Scales",
+        ["StressIllnessThresholdDays"] = "Mechanic Scales",
+        ["IllnessProgressionScale"] = "Mechanic Scales",
+        ["StressDecayMultiplier"] = "Mechanic Scales",
+
+        ["AgeDeclineOnsetMonths"] = "Age & Decline",
+        ["AgeStressMultiplierMax"] = "Age & Decline",
+        ["AgeIllnessMultiplierMax"] = "Age & Decline",
+
+        ["MaxEventsPerWindow"] = "Events",
+        ["EventCooldownWindowHours"] = "Events",
+
+        ["ListingFeeAmount"] = "Marketplace",
+        ["TransactionFeePercent"] = "Marketplace",
+
+        ["RatLifespanYears"] = "Retirement",
+        ["CriticalHealthRetirementDays"] = "Retirement",
+        ["RetirementWarningEarlyPlayerDays"] = "Retirement",
+        ["RetirementWarningLatePlayerDays"] = "Retirement",
+
+        ["MinBreedingAgeRatWeeks"] = "Breeding",
+        ["MaxBreedingAgeRatWeeks"] = "Breeding",
+        ["MaleMaxSiringAgeRatMonths"] = "Breeding",
+        ["MaxLittersPerFemale"] = "Breeding",
+        ["MinGestationRatDays"] = "Breeding",
+        ["MaxGestationRatDays"] = "Breeding",
+        ["MinLitterSize"] = "Breeding",
+        ["MaxLitterSize"] = "Breeding",
+        ["GestationFoodMultiplier"] = "Breeding",
+        ["PupsIndependenceRatWeeks"] = "Breeding",
+        ["ProtectiveMotherProbability"] = "Breeding",
+
+        ["WeeningScaleRatWeeks"] = "Life Stages",
+        ["InfantScaleRatWeeks"] = "Life Stages",
+        ["JuvenileScaleRatWeeks"] = "Life Stages",
+
+        ["PotentialNutritionModifier"] = "Potential Modifiers",
+        ["PotentialStressModifier"] = "Potential Modifiers",
+        ["PotentialCageStressModifier"] = "Potential Modifiers",
+        ["PotentialHealthModifier"] = "Potential Modifiers",
+
+        ["FreeRoamAbilityGain"] = "Training",
+
+        ["AdoptionFee"] = "Adoption",
+        ["MaxAdoptionSurrenders"] = "Adoption",
+        ["AdoptionPoolInitialSize"] = "Adoption",
+        ["AdoptionPoolMaxRandomCount"] = "Adoption",
+
+        ["WeatherTooWarmCelsius"] = "Weather",
+        ["WeatherTooColdCelsius"] = "Weather",
+        ["WeatherTooHumidPercent"] = "Weather",
+        ["WeatherTooDryPercent"] = "Weather",
+        ["WeatherGeneticsMaxStressMultiplier"] = "Weather",
+        ["WeatherIllnessThresholdPenalty"] = "Weather",
+
+        ["LeaderboardSeasonEpoch"] = "Leaderboards",
+        ["LeaderboardSeasonDurationDays"] = "Leaderboards",
+        ["LeaderboardMaxEntries"] = "Leaderboards",
+        ["LeaderboardAverageMinEntries"] = "Leaderboards",
+        ["LeaderboardCacheTtlSeconds"] = "Leaderboards",
+
+        ["DailyRewardCalendarLength"] = "Daily Rewards",
+
+        ["ChallengeWeekEpoch"] = "Challenges",
+
+        ["TrickPassiveLearningRatePerDay"] = "Tricks & Bonding",
+        ["TrickSocialLearningMultiplier"] = "Tricks & Bonding",
+        ["SocialLearningAptitudeThreshold"] = "Tricks & Bonding",
+        ["TrickMaxRoutineSize"] = "Tricks & Bonding",
+        ["TrickScoreNormalizationFactor"] = "Tricks & Bonding",
+        ["MinExecutionQuality"] = "Tricks & Bonding",
+        ["MaxExecutionQuality"] = "Tricks & Bonding",
+        ["BondingGainPerDay"] = "Tricks & Bonding",
+        ["BondingHealthyBonus"] = "Tricks & Bonding",
+        ["BondingOnTrickLearned"] = "Tricks & Bonding",
+
+        ["MaxPlaySessionSeconds"] = "Play Sessions",
+        ["PlaySessionBaselineDuration"] = "Play Sessions",
+        ["ActiveSessionProgressScale"] = "Play Sessions",
+        ["MaxActiveProgressPerRatPerDay"] = "Play Sessions",
+        ["BondingGainPerActiveSession"] = "Play Sessions",
+
+        ["SolitudeThresholdDays"] = "Solitude",
+        ["SolitudeSeverityWeight"] = "Solitude",
+
+        ["VetDiagnosisFee"] = "Veterinary",
+
+        ["BoldFearThresholdMin"] = "Personality Traits",
+        ["ShyFearThresholdMax"] = "Personality Traits",
+        ["CuriousScoreMin"] = "Personality Traits",
+        ["PlayfulTriggerStreakDays"] = "Personality Traits",
+        ["PlayfulLapseDays"] = "Personality Traits",
+        ["LazyTriggerGapDays"] = "Personality Traits",
+        ["LazyRecoveryStreakDays"] = "Personality Traits",
+        ["AffectionateBondingThresholdRatio"] = "Personality Traits",
+        ["AffectionateTriggerDays"] = "Personality Traits",
+        ["FoodieAppetiteMin"] = "Personality Traits",
+        ["GregariousSocialMin"] = "Personality Traits",
+        ["IndependentFearMin"] = "Personality Traits",
+        ["IndependentSocialMax"] = "Personality Traits",
+        ["PopcornEnergyMin"] = "Personality Traits",
+        ["SleepyEnergyMax"] = "Personality Traits",
+        ["HomebodyDriveMax"] = "Personality Traits",
+        ["DrivenDriveMin"] = "Personality Traits",
+        ["SnappyTriggerEpisodes"] = "Personality Traits",
+        ["SnappyRecoveryDays"] = "Personality Traits",
+        ["DevotedMotherLitterThreshold"] = "Personality Traits",
+
+        ["CageCleanlinessUriThreshold"] = "Cage Husbandry",
+        ["CageCleanlinessUriPenalty"] = "Cage Husbandry",
+        ["AccessoryCleaningHours"] = "Cage Husbandry",
+        ["PassiveCleanlinessDecayPerRatDay"] = "Cage Husbandry",
+        ["PassiveConditionDecayPerRatDay"] = "Cage Husbandry",
+        ["MischiefIncidentChancePerTick"] = "Cage Husbandry",
+        ["MischiefConditionDamage"] = "Cage Husbandry",
+        ["TroublemakerTriggerIncidents"] = "Cage Husbandry",
+
+        ["HuskyOnsetAgeMonths"] = "Coat Genetics",
+
+        ["GeneticIllnessSusceptibilityMax"] = "Illness Genetics",
+        ["GeneticIllnessThresholdPenalty"] = "Illness Genetics",
+    };
+
+    IEnumerable<FieldGroup> Grouped() =>
+        fields
+            .GroupBy(f => Category.GetValueOrDefault(f.Name, "Other"))
+            .OrderBy(g => g.Key == "Other" ? 1 : 0)
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new FieldGroup(g.Key, g.OrderBy(f => f.Name, StringComparer.Ordinal).ToArray()));
+}

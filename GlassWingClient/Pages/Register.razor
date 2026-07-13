@@ -55,7 +55,7 @@
         var result = await Api.RegisterAsync(model.Username, model.Email, model.Password);
         if (result is not null)
         {
-            Auth.Token = result.Token;
+            Auth.SetToken(result.Token);
             Auth.PlayerId = result.PlayerId;
             Auth.Username = result.Username;
             Nav.NavigateTo("/home");

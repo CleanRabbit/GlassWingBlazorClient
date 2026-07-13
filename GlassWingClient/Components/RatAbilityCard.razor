@@ -1,0 +1,34 @@
+@* Task 32 §4 — extracted from Pages/RatDetail.razor's inline "Ability" card so both the
+   player-facing rat page and Admin/RatDetail.razor render the exact same read-only markup
+   instead of duplicating it. Purely presentational — no interactive elements. *@
+
+<div class="card h-100">
+    <div class="card-body">
+        <h6 class="card-subtitle mb-3 text-muted">Ability</h6>
+        @foreach (var (label, ability, potential) in new[]
+        {
+            ("Sprint", SprintAbility, SprintPotential),
+            ("Agility", AgilityAbility, AgilityPotential),
+            ("Endurance", EnduranceAbility, EndurancePotential)
+        })
+        {
+            var pct = potential > 0 ? ability / potential * 100 : 0;
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">@label</span>
+                <span class="small">@ability.ToString("F1") / @potential</span>
+            </div>
+            <div class="progress mb-2" style="height:8px">
+                <div class="progress-bar bg-primary" style="width:@(pct.ToString("F0"))%"></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public double SprintAbility { get; set; }
+    [Parameter, EditorRequired] public double AgilityAbility { get; set; }
+    [Parameter, EditorRequired] public double EnduranceAbility { get; set; }
+    [Parameter, EditorRequired] public int SprintPotential { get; set; }
+    [Parameter, EditorRequired] public int AgilityPotential { get; set; }
+    [Parameter, EditorRequired] public int EndurancePotential { get; set; }
+}

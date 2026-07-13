@@ -1,0 +1,108 @@
+@page "/admin/players"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Player Lookup — Admin — GlassWing</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
+        <li class="breadcrumb-item active">Player Lookup</li>
+    </ol>
+</nav>
+
+<h1 class="mb-4">Player Lookup</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input class="form-control" placeholder="Email (or substring) or player id" @bind="query" @bind:event="oninput"
+                   @onkeydown="@(e => { if (e.Key == "Enter") { _ = SearchAsync(); } })" />
+            <button class="btn btn-primary" @onclick="SearchAsync" disabled="@searching">
+                @(searching ? "Searching..." : "Search")
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@if (searched)
+{
+    @if (results.Length == 0)
+    {
+        <p class="text-muted">No matching players.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Currency</th>
+                    <th>Role</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in results)
+                {
+                    <tr>
+                        <td>@p.Username</td>
+                        <td>@(p.Email ?? "—")</td>
+                        <td>@p.Currency.ToString("N0")</td>
+                        <td>
+                            @if (p.Role == "Admin")
+                            {
+                                <span class="badge bg-warning text-dark">Admin</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Player</span>
+                            }
+                        </td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="/admin/players/@p.Id">View</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    string query = "";
+    bool searching;
+    bool searched;
+    string? error;
+    AdminPlayerSummaryResponse[] results = [];
+
+    protected override void OnInitialized()
+    {
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/home"); return; }
+    }
+
+    async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+
+        searching = true;
+        error = null;
+        var response = await Api.AdminSearchPlayersAsync(query);
+        searching = false;
+        searched = true;
+
+        if (response is null)
+        {
+            error = "Search failed.";
+            results = [];
+            return;
+        }
+
+        results = response;
+    }
+}
