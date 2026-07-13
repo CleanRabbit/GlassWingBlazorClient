@@ -240,9 +240,15 @@ public class GlassWingApiClient(HttpClient http)
 
     // --- Tricks (Task 19) ---
 
-    public async Task<TrickCatalogueResponse?> GetTrickCatalogueAsync()
+    // ratId: scopes the matrix (and the server-side genotype decode behind it) to a single rat —
+    // pass this whenever the caller only needs one rat's trick state (e.g. RatDetail's trick
+    // picker) rather than the full roster (e.g. the Tricks browse page).
+    public async Task<TrickCatalogueResponse?> GetTrickCatalogueAsync(string? ratId = null)
     {
-        var resp = await http.GetAsync("/api/tricks/");
+        var url = "/api/tricks/";
+        if (ratId is not null) url += $"?ratId={Uri.EscapeDataString(ratId)}";
+
+        var resp = await http.GetAsync(url);
         return resp.IsSuccessStatusCode
             ? await resp.Content.ReadFromJsonAsync<TrickCatalogueResponse>(JsonOpts)
             : null;
