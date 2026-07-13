@@ -1,0 +1,45 @@
+@page "/admin"
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Admin — GlassWing</PageTitle>
+<h1 class="mb-4">Admin</h1>
+
+<div class="row g-3">
+    <div class="col-sm-6 col-lg-4">
+        <a href="/admin/players" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-4">
+                    <h5 class="card-title">Player Lookup</h5>
+                    <p class="card-text text-muted small mb-0">
+                        Search a player, view their profile/rats/currency, run curated support
+                        actions, and (as a last resort) raw-edit their document.
+                    </p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <a href="/admin/settings" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-4">
+                    <h5 class="card-title">Settings</h5>
+                    <p class="card-text text-muted small mb-0">
+                        Live-tune GameBalance fields — no redeploy needed. Changes apply
+                        immediately to every player.
+                    </p>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+@code {
+    // Task 32 §4 — the one shared guard repeated on every /admin/* page: purely cosmetic (the
+    // API's AdminOnlyFilter is the real boundary), this just avoids rendering an admin-shaped
+    // page shell to someone who's already locked out of every action on it.
+    protected override void OnInitialized()
+    {
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/home"); return; }
+    }
+}

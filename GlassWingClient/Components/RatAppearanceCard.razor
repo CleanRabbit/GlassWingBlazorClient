@@ -1,0 +1,78 @@
+@* Task 32 §4 — extracted from Pages/RatDetail.razor's inline "Appearance" card. The accessory
+   picker (player-only, edits state) is NOT part of this component — it stays owned by whichever
+   page renders one, passed in via ChildContent so this component itself has zero interactive
+   elements and is safe to reuse unmodified on the read-only Admin/RatDetail.razor page. *@
+
+@if (Phenotype is { Coat: { } coat } phenotype)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-3 text-muted">Appearance</h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            <tr>
+                                <th>Description</th>
+                                <td>@CoatDescription(coat)</td>
+                            </tr>
+                            <tr><th>Eyes</th><td>@(coat.EyeColor ?? "—")</td></tr>
+                            <tr><th>Ears</th><td>@(coat.EarType ?? "—")</td></tr>
+                            @if (coat.Pattern == "Hooded" && coat.HoodQuality is not null)
+                            {
+                                <tr><th>Hood Quality</th><td>@coat.HoodQuality</td></tr>
+                            }
+                            @if (coat.PointColor is not null)
+                            {
+                                <tr><th>Point Colour</th><td>@coat.PointColor</td></tr>
+                            }
+                            @if (phenotype.Morphology is { } morph)
+                            {
+                                <tr><th>Sex</th><td>@(morph.Sex ?? "—")</td></tr>
+                                <tr><th>Size</th><td>@morph.BodySize / 100</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <p class="text-muted small mb-2">Markings</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (coat.HasBlaze)         { <span class="badge bg-secondary">Blaze</span> }
+                        @if (coat.IsRoan)           { <span class="badge bg-secondary">Roan</span> }
+                        @if (coat.IsDownunder)      { <span class="badge bg-secondary">Downunder</span> }
+                        @if (coat.IsDownunderHomozygous) { <span class="badge bg-secondary">Downunder (HZ)</span> }
+                        @if (coat.Silvering == "Light")  { <span class="badge bg-secondary">Light Silvering</span> }
+                        @if (coat.Silvering == "Heavy")  { <span class="badge bg-secondary">Heavy Silvering</span> }
+                        @if (coat.Pearl == "Light")      { <span class="badge bg-secondary">Light Pearl</span> }
+                        @if (coat.Pearl == "Heavy")      { <span class="badge bg-secondary">Heavy Pearl</span> }
+                        @if (coat.HasWhiteFeet)          { <span class="badge bg-secondary">White Feet</span> }
+                        @if (coat.IsHuskyCarrier)        { <span class="badge bg-secondary">Husky Carrier@(coat.IsBandedHusky ? " (Banded)" : "")</span> }
+                        @if (!coat.HasBlaze && !coat.IsRoan && !coat.IsDownunder && !coat.HasWhiteFeet && !coat.IsHuskyCarrier
+                             && coat.Silvering is null or "None" && coat.Pearl is null or "None")
+                        {
+                            <span class="text-muted small">None</span>
+                        }
+                    </div>
+                    @ChildContent
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public RatPhenotype? Phenotype { get; set; }
+
+    // Player page passes its accessory <select> here; Admin/RatDetail.razor passes nothing.
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    public static string CoatDescription(CoatPhenotype c)
+    {
+        var parts = new List<string>();
+        if (c.EarType is "Dumbo") parts.Add("Dumbo");
+        if (c.BaseColor is not null) parts.Add(c.BaseColor);
+        if (c.Pattern is not null) parts.Add(c.Pattern);
+        if (c.Type is not null and not "Standard") parts.Add(c.Type);
+        return parts.Count > 0 ? string.Join(" ", parts) : "—";
+    }
+}

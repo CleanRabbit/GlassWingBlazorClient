@@ -100,25 +100,8 @@ else
 
         @* Ability *@
         <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-3 text-muted">Ability</h6>
-                    @foreach (var (label, ability, potential) in new[] {
-                        ("Sprint", rat.SprintAbility, rat.SprintPotential),
-                        ("Agility", rat.AgilityAbility, rat.AgilityPotential),
-                        ("Endurance", rat.EnduranceAbility, rat.EndurancePotential) })
-                    {
-                        var pct = potential > 0 ? ability / potential * 100 : 0;
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="small text-muted">@label</span>
-                            <span class="small">@ability.ToString("F1") / @potential</span>
-                        </div>
-                        <div class="progress mb-2" style="height:8px">
-                            <div class="progress-bar bg-primary" style="width:@(pct.ToString("F0"))%"></div>
-                        </div>
-                    }
-                </div>
-            </div>
+            <RatAbilityCard SprintAbility="rat.SprintAbility" AgilityAbility="rat.AgilityAbility" EnduranceAbility="rat.EnduranceAbility"
+                             SprintPotential="rat.SprintPotential" AgilityPotential="rat.AgilityPotential" EndurancePotential="rat.EndurancePotential" />
         </div>
 
         @* Health *@
@@ -223,104 +206,34 @@ else
 
         @* Personality *@
         <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-3 text-muted">Personality</h6>
-                    @if (rat.Traits is { Length: > 0 })
-                    {
-                        <div class="d-flex flex-wrap gap-2">
-                            @foreach (var trait in rat.Traits)
-                            {
-                                <span class="badge bg-secondary" title="@TraitDescription(trait)">@trait</span>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="text-muted small">No notable traits</span>
-                    }
-                </div>
-            </div>
+            <RatPersonalityCard Traits="rat.Traits" />
         </div>
 
     </div>
 
     @* Appearance *@
-    @if (rat.Phenotype is { Coat: { } coat } phenotype)
-    {
-        <div class="card mb-4">
-            <div class="card-body">
-                <h6 class="card-subtitle mb-3 text-muted">Appearance</h6>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <table class="table table-sm mb-0">
-                            <tbody>
-                                <tr>
-                                    <th>Description</th>
-                                    <td>@CoatDescription(coat)</td>
-                                </tr>
-                                <tr><th>Eyes</th><td>@(coat.EyeColor ?? "—")</td></tr>
-                                <tr><th>Ears</th><td>@(coat.EarType ?? "—")</td></tr>
-                                @if (coat.Pattern == "Hooded" && coat.HoodQuality is not null)
-                                {
-                                    <tr><th>Hood Quality</th><td>@coat.HoodQuality</td></tr>
-                                }
-                                @if (coat.PointColor is not null)
-                                {
-                                    <tr><th>Point Colour</th><td>@coat.PointColor</td></tr>
-                                }
-                                @if (phenotype.Morphology is { } morph)
-                                {
-                                    <tr><th>Sex</th><td>@(morph.Sex ?? "—")</td></tr>
-                                    <tr><th>Size</th><td>@morph.BodySize / 100</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <p class="text-muted small mb-2">Markings</p>
-                        <div class="d-flex flex-wrap gap-2">
-                            @if (coat.HasBlaze)         { <span class="badge bg-secondary">Blaze</span> }
-                            @if (coat.IsRoan)           { <span class="badge bg-secondary">Roan</span> }
-                            @if (coat.IsDownunder)      { <span class="badge bg-secondary">Downunder</span> }
-                            @if (coat.IsDownunderHomozygous) { <span class="badge bg-secondary">Downunder (HZ)</span> }
-                            @if (coat.Silvering == "Light")  { <span class="badge bg-secondary">Light Silvering</span> }
-                            @if (coat.Silvering == "Heavy")  { <span class="badge bg-secondary">Heavy Silvering</span> }
-                            @if (coat.Pearl == "Light")      { <span class="badge bg-secondary">Light Pearl</span> }
-                            @if (coat.Pearl == "Heavy")      { <span class="badge bg-secondary">Heavy Pearl</span> }
-                            @if (coat.HasWhiteFeet)          { <span class="badge bg-secondary">White Feet</span> }
-                            @if (coat.IsHuskyCarrier)        { <span class="badge bg-secondary">Husky Carrier@(coat.IsBandedHusky ? " (Banded)" : "")</span> }
-                            @if (!coat.HasBlaze && !coat.IsRoan && !coat.IsDownunder && !coat.HasWhiteFeet && !coat.IsHuskyCarrier
-                                 && coat.Silvering is null or "None" && coat.Pearl is null or "None")
-                            {
-                                <span class="text-muted small">None</span>
-                            }
-                        </div>
-                        @if (!isPublicView)
-                        {
-                            <div class="mt-3">
-                                <p class="text-muted small mb-1">Accessory</p>
-                                <select class="form-select form-select-sm d-inline-block" style="max-width:200px"
-                                        value="@(rat.ActiveCosmeticId ?? "")"
-                                        @onchange="e => SetRatCosmeticAsync(e.Value?.ToString())"
-                                        disabled="@cosmeticBusy">
-                                    <option value="">— none —</option>
-                                    @foreach (var acc in ownedRatAccessories)
-                                    {
-                                        <option value="@acc.Id">@acc.Name</option>
-                                    }
-                                </select>
-                                @if (cosmeticError is not null)
-                                {
-                                    <div class="text-danger small mt-1">@cosmeticError</div>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
+    <RatAppearanceCard Phenotype="rat.Phenotype">
+        @if (!isPublicView)
+        {
+            <div class="mt-3">
+                <p class="text-muted small mb-1">Accessory</p>
+                <select class="form-select form-select-sm d-inline-block" style="max-width:200px"
+                        value="@(rat.ActiveCosmeticId ?? "")"
+                        @onchange="e => SetRatCosmeticAsync(e.Value?.ToString())"
+                        disabled="@cosmeticBusy">
+                    <option value="">— none —</option>
+                    @foreach (var acc in ownedRatAccessories)
+                    {
+                        <option value="@acc.Id">@acc.Name</option>
+                    }
+                </select>
+                @if (cosmeticError is not null)
+                {
+                    <div class="text-danger small mt-1">@cosmeticError</div>
+                }
             </div>
-        </div>
-    }
+        }
+    </RatAppearanceCard>
 
     @* Lineage (Task 13) *@
     @if (rat.Ancestry is { Father: not null } or { Mother: not null })
@@ -1184,28 +1097,9 @@ else
         </div>
     };
 
-    static string TraitDescription(string trait) => trait switch
-    {
-        "Fussy"        => "Picky about food quality.",
-        "Overweight"   => "Carrying extra weight.",
-        "Bold"         => "Fearless and quick to try new things. Slightly boosts event scores. Fixed from birth.",
-        "Shy"          => "Cautious and easily startled. Slightly hurts event scores. Fixed from birth.",
-        "Curious"      => "Investigates its surroundings eagerly. Slightly speeds up training. Fixed from birth.",
-        "Lazy"         => "Hasn't been engaged in play recently. Slightly slows training.",
-        "Playful"      => "Consistently engaged in play lately. Slightly speeds up training.",
-        "Affectionate" => "Deeply bonded with its owner. Slightly speeds up further bonding gains.",
-        "Foodie"       => "Motivated by treats. Slightly speeds up training. Fixed from birth.",
-        "Gregarious"   => "Highly social with other rats. Slightly speeds up bonding gains. Fixed from birth.",
-        "Independent"  => "Confident but doesn't seek out attention. Slightly boosts event scores. Fixed from birth.",
-        "Popcorn"      => "Energetic and athletic. Slightly boosts event scores. Fixed from birth.",
-        "Sleepy"       => "Low energy. Slightly hurts event scores. Fixed from birth.",
-        "Homebody"     => "Calm in familiar surroundings. Slightly slows stress buildup. Fixed from birth.",
-        "Driven"       => "Motivated to improve. Slightly speeds up training. Fixed from birth.",
-        "Snappy"       => "On edge from recent stress. Slightly speeds up further stress buildup.",
-        "DevotedMother" => "Earned through raising many litters. Slightly speeds up bonding gains. Permanent.",
-        "Troublemaker" => "Prone to mischief around cage items. Permanent.",
-        _              => trait
-    };
+    // TraitDescription/CoatDescription moved to Components/RatPersonalityCard.razor and
+    // Components/RatAppearanceCard.razor (Task 32 §4) — both rat detail pages now render the
+    // same shared components instead of duplicating this markup/logic.
 
     static string VitalityBadgeClass(string? vitality) => vitality switch
     {
@@ -1216,16 +1110,6 @@ else
         "Critical" => "bg-danger",
         _          => "bg-secondary"
     };
-
-    static string CoatDescription(CoatPhenotype c)
-    {
-        var parts = new System.Collections.Generic.List<string>();
-        if (c.EarType is "Dumbo") parts.Add("Dumbo");
-        if (c.BaseColor is not null) parts.Add(c.BaseColor);
-        if (c.Pattern is not null) parts.Add(c.Pattern);
-        if (c.Type is not null and not "Standard") parts.Add(c.Type);
-        return parts.Count > 0 ? string.Join(" ", parts) : "—";
-    }
 
     // Ancestry (Task 13). depth 1 = parent, 2 = grandparent, 3 = great-grandparent,
     // 4 = great-great-grandparent (the API bounds the tree at 4 generations). Generations 1-2

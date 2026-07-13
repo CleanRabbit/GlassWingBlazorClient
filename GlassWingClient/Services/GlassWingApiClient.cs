@@ -881,4 +881,139 @@ public class GlassWingApiClient(HttpClient http)
         var body = await resp.Content.ReadAsStringAsync();
         return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
+
+    // --- Admin (Task 32) ---
+    // Every call below hits /api/admin/*, gated server-side by AdminOnlyFilter — a non-admin (or
+    // an admin whose Role was just revoked) gets a 403 from every one of these regardless of
+    // what AuthStateService.IsAdmin says client-side. See AuthStateService's own remarks.
+
+    public async Task<AdminPlayerSummaryResponse[]?> AdminSearchPlayersAsync(string query)
+    {
+        var resp = await http.GetAsync($"/api/admin/players/search?query={Uri.EscapeDataString(query)}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<AdminPlayerSummaryResponse[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<AdminPlayerDetailResponse?> AdminGetPlayerAsync(string id)
+    {
+        var resp = await http.GetAsync($"/api/admin/players/{id}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<AdminPlayerDetailResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<RatResponse?> AdminGetRatAsync(string id)
+    {
+        var resp = await http.GetAsync($"/api/admin/rats/{id}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts)
+            : null;
+    }
+
+    public async Task<AdminAuditLogEntryDto[]?> AdminGetPlayerAuditLogAsync(string playerId, int limit = 20)
+    {
+        var resp = await http.GetAsync($"/api/admin/players/{playerId}/audit-log?limit={limit}");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<AdminAuditLogEntryDto[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(int? NewBalance, string? Error)> AdminAdjustCurrencyAsync(string playerId, int delta, string reason)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/admin/players/{playerId}/currency", new { delta, reason }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return ((await resp.Content.ReadFromJsonAsync<AdjustCurrencyResponseDto>(JsonOpts))?.NewBalance, null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> AdminGrantRatAsync(
+        string playerId, string reason, string? genotype, string? sex)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"/api/admin/players/{playerId}/rats/grant", new { reason, genotype, sex }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> AdminClearLockAsync(string ratId, string reason)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/admin/rats/{ratId}/clear-lock", new { reason }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
+    }
+
+    public async Task<(RatResponse? Rat, string? Error)> AdminRetireRatAsync(string ratId, string reason)
+    {
+        var resp = await http.PostAsJsonAsync($"/api/admin/rats/{ratId}/admin-retire", new { reason }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RatResponse>(JsonOpts), null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
+    }
+
+    public async Task<string?> AdminGetPlayerRawAsync(string id)
+    {
+        var resp = await http.GetAsync($"/api/admin/players/{id}/raw");
+        return resp.IsSuccessStatusCode ? await resp.Content.ReadAsStringAsync() : null;
+    }
+
+    public async Task<(bool Success, string? Error)> AdminPatchPlayerRawAsync(string id, string reason, string partialJson)
+    {
+        var resp = await http.PatchAsync(
+            $"/api/admin/players/{id}/raw?reason={Uri.EscapeDataString(reason)}",
+            new StringContent(partialJson, System.Text.Encoding.UTF8, "application/json"));
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (false, error);
+    }
+
+    public async Task<string?> AdminGetRatRawAsync(string id)
+    {
+        var resp = await http.GetAsync($"/api/admin/rats/{id}/raw");
+        return resp.IsSuccessStatusCode ? await resp.Content.ReadAsStringAsync() : null;
+    }
+
+    public async Task<(bool Success, string? Error)> AdminPatchRatRawAsync(string id, string reason, string partialJson)
+    {
+        var resp = await http.PatchAsync(
+            $"/api/admin/rats/{id}/raw?reason={Uri.EscapeDataString(reason)}",
+            new StringContent(partialJson, System.Text.Encoding.UTF8, "application/json"));
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (false, error);
+    }
+
+    public async Task<AdminGameSettingFieldDto[]?> AdminGetSettingsAsync()
+    {
+        var resp = await http.GetAsync("/api/admin/settings/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<AdminGameSettingFieldDto[]>(JsonOpts)
+            : null;
+    }
+
+    // rawJsonValue is the literal JSON value text (e.g. "24.5" or "\"2026-02-01T00:00:00Z\""),
+    // not wrapped in an envelope object — matches the server's generic reflection-based endpoint.
+    public async Task<(bool Success, string? Error)> AdminSetSettingAsync(string fieldName, string rawJsonValue)
+    {
+        var resp = await http.PutAsync(
+            $"/api/admin/settings/{fieldName}",
+            new StringContent(rawJsonValue, System.Text.Encoding.UTF8, "application/json"));
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (false, error);
+    }
+
+    public async Task<(bool Success, string? Error)> AdminRemoveSettingOverrideAsync(string fieldName)
+    {
+        var resp = await http.DeleteAsync($"/api/admin/settings/{fieldName}");
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (false, error);
+    }
 }
