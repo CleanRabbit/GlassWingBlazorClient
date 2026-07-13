@@ -266,11 +266,16 @@ public record WeatherInfo(
 
 // ── Achievements (Task 18a) ────────────────────────────────────────────────────
 
+// Progress/CriteriaType/CriteriaThreshold are raw catalogue/state fields — Threshold/display-
+// progress/Owned-style booleans are no longer pre-computed server-side (Task 29-30 §2). Progress
+// is a plain running count, except for AchievementCatalogueClient.AllEventTypesId ("all-event-types")
+// where it's a 3-bit mask the client PopCounts (see ProgressAchievements.razor).
 public record AchievementsResponse(AchievementCategoryGroup[] Categories, AchievementsSummary Summary);
 public record AchievementCategoryGroup(string Category, AchievementEntry[] Achievements);
 public record AchievementEntry(
     string Id, string Name, string Description,
-    DateTime? CompletedAt, int Progress, int Threshold,
+    DateTime? CompletedAt, int Progress,
+    string CriteriaType, int? CriteriaThreshold,
     AchievementRewardInfo Reward);
 public record AchievementRewardInfo(int? Currency, string? TitleId, string? CosmeticId);
 public record AchievementsSummary(int Total, int Completed, string[] PendingUnlocks);
@@ -279,8 +284,10 @@ public record AchievementsHomeSummary(bool HasPendingUnlocks);
 
 // ── Titles (Task 18b) ───────────────────────────────────────────────────────────
 
-public record TitlesResponse(string? ActiveTitleId, TitleEntry[] Titles);
-public record TitleEntry(string Id, string DisplayText, string Description, string UnlockSource, bool Unlocked);
+// UnlockedTitleIds is the player's raw owned-title-id set — TitleEntry no longer carries a
+// pre-computed Unlocked bool; callers derive it via UnlockedTitleIds.Contains(t.Id) (Task 29-30 §2).
+public record TitlesResponse(string? ActiveTitleId, TitleEntry[] Titles, string[] UnlockedTitleIds);
+public record TitleEntry(string Id, string DisplayText, string Description, string UnlockSource);
 
 // ── Daily Rewards (Task 18c) ────────────────────────────────────────────────────
 
@@ -335,11 +342,13 @@ public record SeasonalEventSummaryInfo(
 
 // EquippedOn is always [] from the real API (lazy evaluation) — read ActiveCosmeticId off
 // the relevant CageResponse/RatResponse instead, per the backend's own recommendation.
+// CosmeticEntry no longer carries a pre-computed Owned bool — callers derive it via
+// CosmeticsResponse.UnlockedCosmeticIds.Contains(c.Id) (Task 29-30 §2).
 public record CosmeticEntry(
     string Id, string Name, string Description, string Rarity, string Availability,
-    int? ShopPrice, string? GrantSource, bool Owned, string[] EquippedOn);
+    int? ShopPrice, string? GrantSource, string[] EquippedOn);
 
-public record CosmeticsResponse(CosmeticEntry[] CageDecorations, CosmeticEntry[] RatAccessories);
+public record CosmeticsResponse(CosmeticEntry[] CageDecorations, CosmeticEntry[] RatAccessories, string[] UnlockedCosmeticIds);
 public record BuyCosmeticResponse(int Currency, CosmeticEntry Cosmetic);
 
 public record CageResponse(
