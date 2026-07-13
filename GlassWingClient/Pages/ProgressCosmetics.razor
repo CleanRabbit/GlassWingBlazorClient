@@ -105,7 +105,7 @@ else
                         <p class="text-muted small mb-2">@c.Description</p>
                     }
                     <div class="mt-auto">
-                        @if (c.Owned)
+                        @if (data!.UnlockedCosmeticIds.Contains(c.Id))
                         {
                             <span class="badge bg-success">Owned</span>
                         }

@@ -683,7 +683,9 @@ else
     async Task LoadCosmeticsAsync()
     {
         var cosmetics = await Api.GetCosmeticsAsync();
-        ownedRatAccessories = cosmetics?.RatAccessories.Where(c => c.Owned).ToArray() ?? [];
+        ownedRatAccessories = cosmetics is null
+            ? []
+            : cosmetics.RatAccessories.Where(c => cosmetics.UnlockedCosmeticIds.Contains(c.Id)).ToArray();
     }
 
     async Task SetRatCosmeticAsync(string? cosmeticId)

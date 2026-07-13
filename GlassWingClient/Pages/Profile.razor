@@ -50,7 +50,7 @@ else
                             {
                                 <select class="form-select form-select-sm d-inline-block w-auto" @bind="selectedTitleId" disabled="@titleBusy">
                                     <option value="">— none —</option>
-                                    @foreach (var t in titles.Titles.Where(t => t.Unlocked))
+                                    @foreach (var t in titles.Titles.Where(t => titles.UnlockedTitleIds.Contains(t.Id)))
                                     {
                                         <option value="@t.Id">@t.DisplayText</option>
                                     }

@@ -50,12 +50,14 @@ else
 
                             @if (a.CompletedAt is null)
                             {
-                                if (a.Threshold > 1)
+                                var threshold = Threshold(a);
+                                if (threshold > 1)
                                 {
+                                    var progress = Progress(a);
                                     <div class="progress mt-1" style="height:8px; max-width:300px">
-                                        <div class="progress-bar" style="width:@(Pct(a.Progress, a.Threshold))%"></div>
+                                        <div class="progress-bar" style="width:@(Pct(progress, threshold))%"></div>
                                     </div>
-                                    <div class="text-muted small">@a.Progress / @a.Threshold</div>
+                                    <div class="text-muted small">@progress / @threshold</div>
                                 }
                                 else
                                 {
@@ -151,4 +153,29 @@ else
     }
 
     static int Pct(int progress, int threshold) => threshold <= 0 ? 0 : Math.Min(100, progress * 100 / threshold);
+
+    // Mirrors the server's former AchievementsModule.ToResponse computation (Task 29-30 §2) — the
+    // API now ships raw CriteriaType/CriteriaThreshold/Progress/CompletedAt and the client derives
+    // the display-ready threshold/progress itself, including the "all-event-types" PopCount special case.
+    const string AllEventTypesId = "all-event-types";
+
+    static int Threshold(AchievementEntry a) => a.Id == AllEventTypesId ? 3 : a.CriteriaType switch
+    {
+        "Once"                        => 1,
+        "Count" or "ConcurrentCount"  => a.CriteriaThreshold ?? 1,
+        _                             => 0
+    };
+
+    static int Progress(AchievementEntry a) => a.CriteriaType == "Once"
+        ? (a.CompletedAt is not null ? 1 : 0)
+        : a.Id == AllEventTypesId
+            ? PopCount(a.Progress)
+            : a.Progress;
+
+    static int PopCount(int bits)
+    {
+        var count = 0;
+        while (bits != 0) { count += bits & 1; bits >>= 1; }
+        return count;
+    }
 }

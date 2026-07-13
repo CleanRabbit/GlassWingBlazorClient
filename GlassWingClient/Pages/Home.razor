@@ -676,7 +676,9 @@ else
             catalogue        = await catalogueTask;
             trainingRegimes  = await regimesTask ?? [];
             var cosmetics    = await cosmeticsTask;
-            ownedCageDecorations = cosmetics?.CageDecorations.Where(c => c.Owned).ToArray() ?? [];
+            ownedCageDecorations = cosmetics is null
+                ? []
+                : cosmetics.CageDecorations.Where(c => cosmetics.UnlockedCosmeticIds.Contains(c.Id)).ToArray();
             var (data, error) = homeResult;
             if (error == "HomeNotBootstrapped")
             {

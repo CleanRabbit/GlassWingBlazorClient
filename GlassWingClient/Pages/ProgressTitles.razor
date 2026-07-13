@@ -57,13 +57,14 @@ else
             </div>
             @foreach (var t in data.Titles)
             {
-                <div class="d-flex justify-content-between align-items-center py-2 px-3 border-bottom @(t.Unlocked ? "" : "opacity-50")">
+                var unlocked = data.UnlockedTitleIds.Contains(t.Id);
+                <div class="d-flex justify-content-between align-items-center py-2 px-3 border-bottom @(unlocked ? "" : "opacity-50")">
                     <div>
                         <div class="fw-bold">@t.DisplayText</div>
                         <div class="text-muted small">@t.Description</div>
                         <span class="badge bg-secondary mt-1">@t.UnlockSource</span>
                     </div>
-                    @if (!t.Unlocked)
+                    @if (!unlocked)
                     {
                         <span class="badge bg-secondary">Locked</span>
                     }
