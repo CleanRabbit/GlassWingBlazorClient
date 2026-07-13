@@ -74,8 +74,13 @@ else
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-        var profile = await Api.GetPlayerProfileAsync();
-        playerId = profile?.PlayerId;
+        // Normally already known from login; only Dev Bypass (which skips login) needs the fallback fetch.
+        playerId = Auth.PlayerId;
+        if (playerId is null)
+        {
+            var profile = await Api.GetPlayerProfileAsync();
+            playerId = profile?.PlayerId;
+        }
         await LoadAsync();
     }
 

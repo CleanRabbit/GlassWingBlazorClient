@@ -61,6 +61,8 @@ else
         if (result is not null)
         {
             Auth.Token = result.Token;
+            Auth.PlayerId = result.PlayerId;
+            Auth.Username = result.Username;
             Nav.NavigateTo("/home");
         }
         else

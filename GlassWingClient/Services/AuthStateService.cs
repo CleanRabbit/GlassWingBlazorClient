@@ -4,6 +4,8 @@ public class AuthStateService
 {
     public bool IsDevBypass { get; set; }
     public string? Token { get; set; }
+    public string? PlayerId { get; set; }
+    public string? Username { get; set; }
     public bool IsAuthenticated => IsDevBypass || !string.IsNullOrEmpty(Token);
 
     public string? GetAuthHeaderValue() =>
