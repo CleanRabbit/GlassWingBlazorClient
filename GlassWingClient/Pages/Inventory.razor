@@ -337,12 +337,17 @@ else
     {
         if (string.IsNullOrEmpty(selectedCageId) || activePanelId is null) return;
         busy = true; actionError = null; actionSuccess = null;
-        var (success, err) = await Api.PlaceRatFromCarryCaseAsync(activePanelId, selectedCageId);
+        var carryCaseId = activePanelId;
+        var (success, err) = await Api.PlaceRatFromCarryCaseAsync(carryCaseId, selectedCageId);
         ClosePanel();
         if (success)
         {
             actionSuccess = "Rat placed in cage.";
-            await LoadAsync();
+            // The carry case is consumed by a successful move (HomeService.ReleaseCarryCase
+            // frees its home-accessory slot entirely) — no endpoint widening needed, just drop
+            // it locally (Task 29 §7 / Task 30 §3).
+            if (home is not null)
+                home = home with { CarryCases = (home.CarryCases ?? []).Where(c => c.Id != carryCaseId).ToArray() };
         }
         else
         {
@@ -356,22 +361,24 @@ else
         if (string.IsNullOrEmpty(selectedCageId) || activePanelId is null || activeItemKind is null) return;
         busy = true; actionError = null; actionSuccess = null;
 
-        bool success;
+        CageResponse? cage;
         string? err;
+        var itemId = activePanelId;
         if (activeItemKind == "FoodBowl")
-            (success, err) = await Api.InstallBowlFromDrawerAsync(selectedCageId, activePanelId);
+            (cage, err) = await Api.InstallBowlFromDrawerAsync(selectedCageId, itemId);
         else if (activeItemKind == "WaterBottle")
-            (success, err) = await Api.InstallBottleFromDrawerAsync(selectedCageId, activePanelId);
+            (cage, err) = await Api.InstallBottleFromDrawerAsync(selectedCageId, itemId);
         else if (activeItemKind == "Accessory")
-            (success, err) = await Api.InstallAccessoryFromDrawerAsync(selectedCageId, activePanelId);
+            (cage, err) = await Api.InstallAccessoryFromDrawerAsync(selectedCageId, itemId);
         else
-            (success, err) = (false, "Unknown item type.");
+            (cage, err) = (null, "Unknown item type.");
 
         ClosePanel();
-        if (success)
+        if (cage is not null)
         {
             actionSuccess = "Item installed in cage.";
-            await LoadAsync();
+            ReplaceCage(cage);
+            RemoveDrawerItem(itemId);
         }
         else
         {
@@ -388,13 +395,48 @@ else
         if (success)
         {
             actionSuccess = "Accessory discarded.";
-            await LoadAsync();
+            RemoveHomeAccessory(accessoryId);
         }
         else
         {
             actionError = err ?? "Failed to discard accessory.";
         }
         discardBusy.Remove(accessoryId);
+    }
+
+    // Discard only ever targets one of these five arrays at a time — filtering an id out of the
+    // other four is always a no-op, so there's no need to know up front which kind it was.
+    void RemoveHomeAccessory(string accessoryId)
+    {
+        if (home is null) return;
+        home = home with
+        {
+            CarryCases         = (home.CarryCases ?? []).Where(c => c.Id != accessoryId).ToArray(),
+            StorageDrawers     = (home.StorageDrawers ?? []).Where(d => d.Id != accessoryId).ToArray(),
+            FoodStorageBins    = (home.FoodStorageBins ?? []).Where(b => b.Id != accessoryId).ToArray(),
+            WeatherAccessories = (home.WeatherAccessories ?? []).Where(w => w.Id != accessoryId).ToArray(),
+            MedicationDevices  = (home.MedicationDevices ?? []).Where(m => m.Id != accessoryId).ToArray(),
+        };
+    }
+
+    void ReplaceCage(CageResponse updated)
+    {
+        if (home is null) return;
+        home = home with { Cages = home.Cages.Select(c => c.Id == updated.Id ? updated : c).ToArray() };
+    }
+
+    // Bowl/bottle/accessory installs pull an item out of a storage drawer server-side; the
+    // widened cage-mutation response doesn't carry the drawers' new state too, so remove the
+    // consumed item from local drawer state here instead.
+    void RemoveDrawerItem(string itemId)
+    {
+        if (home?.StorageDrawers is not { Length: > 0 }) return;
+        home = home with
+        {
+            StorageDrawers = home.StorageDrawers.Select(d => !d.Items.Any(i => i.Id == itemId)
+                ? d
+                : d with { Items = d.Items.Where(i => i.Id != itemId).ToArray(), SlotsAvailable = d.SlotsAvailable + 1 }).ToArray()
+        };
     }
 
     static string KindLabel(string kind) => kind switch

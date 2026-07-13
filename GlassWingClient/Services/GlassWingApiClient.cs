@@ -350,12 +350,13 @@ public class GlassWingApiClient(HttpClient http)
 
     // Real route is /api/home/cages/{cageId}/cosmetic (this API's existing Home-scoped cage
     // convention), not a top-level /api/cages/... path.
-    public async Task<(bool Success, string? Error)> SetCageCosmeticAsync(string cageId, string? cosmeticId)
+    public async Task<(CageResponse? Cage, string? Error)> SetCageCosmeticAsync(string cageId, string? cosmeticId)
     {
         var resp = await http.PutAsJsonAsync($"/api/home/cages/{cageId}/cosmetic", new { cosmeticId }, JsonOpts);
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
     public async Task<(bool Success, string? Error)> SetRatCosmeticAsync(string ratId, string? cosmeticId)
@@ -404,40 +405,70 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
-    public async Task<bool> RenameHomeAsync(string name)
+    public async Task<(RenameHomeResponse? Result, string? Error)> RenameHomeAsync(string name)
     {
         var resp = await http.PatchAsJsonAsync("/api/home/name", new { name }, JsonOpts);
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<RenameHomeResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> RenameCageAsync(string cageId, string name)
+    public async Task<(CageResponse? Cage, string? Error)> RenameCageAsync(string cageId, string name)
     {
         var resp = await http.PatchAsJsonAsync($"/api/home/cages/{cageId}/name", new { name }, JsonOpts);
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> RefillFoodAsync(string cageId, string? foodTypeId = null)
+    public async Task<(CageResponse? Cage, string? Error)> RefillFoodAsync(string cageId, string? foodTypeId = null)
     {
         var url = $"/api/home/cages/{cageId}/food";
         if (foodTypeId is not null) url += $"?foodTypeId={Uri.EscapeDataString(foodTypeId)}";
         var resp = await http.PostAsync(url, null);
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> RefillWaterAsync(string cageId)
+    public async Task<(CageResponse? Cage, string? Error)> RefillWaterAsync(string cageId)
     {
         var resp = await http.PostAsync($"/api/home/cages/{cageId}/water", null);
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> SetRegimeAsync(string cageId, string? regimeId = null)
+    public async Task<(CageResponse? Cage, string? Error)> SetRegimeAsync(string cageId, string? regimeId = null)
     {
         var url = $"/api/home/cages/{cageId}/regime";
         if (regimeId is not null) url += $"?regimeId={Uri.EscapeDataString(regimeId)}";
         var resp = await http.PostAsync(url, null);
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    // POST /api/home/cages/{cageId}/train — 409 if mixed-sex adults are awaiting separation,
+    // 422 if the cage has no regime assigned or no rats in it are currently eligible.
+    public async Task<(StartTrainingSessionResponse? Result, string? Error)> StartCageTrainingAsync(string cageId)
+    {
+        var resp = await http.PostAsync($"/api/home/cages/{cageId}/train", null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<StartTrainingSessionResponse>(JsonOpts), null);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return (null, "Cage not found.");
+        var (error, reason) = await ParseErrorAsync(resp);
+        // The 409 SexSeparationRequired body reverses this endpoint's usual Error/Reason
+        // convention (Error carries the machine code, Reason the human sentence) — every other
+        // failure here (422 "no regime"/"no eligible rats"/per-rat messages) already puts a
+        // full sentence in Error, so only special-case the one inverted code.
+        return (null, error == "SexSeparationRequired" ? reason ?? error : error);
     }
 
     public async Task<(bool Success, string? Error)> InstallBowlAsync(string cageId, string bowlTypeId)
@@ -448,10 +479,13 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> RemoveBowlAsync(string cageId, string bowlId)
+    public async Task<(CageResponse? Cage, string? Error)> RemoveBowlAsync(string cageId, string bowlId)
     {
         var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/bowls/{bowlId}");
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
     public async Task<(bool Success, string? Error)> InstallBottleAsync(string cageId, string bottleTypeId)
@@ -462,18 +496,22 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<bool> RemoveBottleAsync(string cageId, string bottleId)
+    public async Task<(CageResponse? Cage, string? Error)> RemoveBottleAsync(string cageId, string bottleId)
     {
         var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/bottles/{bottleId}");
-        return resp.IsSuccessStatusCode;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> RemoveAccessoryAsync(string cageId, string accessoryId)
+    public async Task<(CageResponse? Cage, string? Error)> RemoveAccessoryAsync(string cageId, string accessoryId)
     {
         var resp = await http.DeleteAsync($"/api/home/cages/{cageId}/accessories/{accessoryId}");
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
     public async Task<(bool Success, string? Error)> DiscardHomeAccessoryAsync(string accessoryId)
@@ -500,28 +538,31 @@ public class GlassWingApiClient(HttpClient http)
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> InstallBowlFromDrawerAsync(string cageId, string itemId)
+    public async Task<(CageResponse? Cage, string? Error)> InstallBowlFromDrawerAsync(string cageId, string itemId)
     {
         var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bowls", new { itemId }, JsonOpts);
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> InstallBottleFromDrawerAsync(string cageId, string itemId)
+    public async Task<(CageResponse? Cage, string? Error)> InstallBottleFromDrawerAsync(string cageId, string itemId)
     {
         var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/bottles", new { itemId }, JsonOpts);
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(bool Success, string? Error)> InstallAccessoryFromDrawerAsync(string cageId, string itemId)
+    public async Task<(CageResponse? Cage, string? Error)> InstallAccessoryFromDrawerAsync(string cageId, string itemId)
     {
         var resp = await http.PostAsJsonAsync($"/api/home/cages/{cageId}/accessories", new { itemId }, JsonOpts);
-        if (resp.IsSuccessStatusCode) return (true, null);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<CageResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
-        return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+        return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
     // --- Welfare ---
