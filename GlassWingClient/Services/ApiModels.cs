@@ -50,9 +50,8 @@ public record RatResponse(
 // GET /api/rats — lightweight roster projection (Task 30 §4). Scoped to what Rats.razor's
 // table renders (name/sex/current abilities, IsRetired/IsPregnant) plus IsNursing, needed by
 // this same endpoint's other callers (Events.razor's event-entry eligibility filter,
-// RatDetail.razor's mate picker, Adoption.razor's surrender list). No phenotype, no
-// CompetitionHistory — fetch GetRatAsync(id) for full detail, or GetRatEventHistoryAsync(id)
-// for a rat's paginated competition history.
+// RatDetail.razor's mate picker, Adoption.razor's surrender list). No phenotype, no event
+// scorecard — fetch GetRatAsync(id) for full detail.
 public record RatRosterResponse(
     string Id,
     string Name,
@@ -475,18 +474,6 @@ public record LeaderboardResponse(
 public record LeaderboardEntryResponse(
     int Rank, string RatId, string RatName, string OwnerPlayerId, string OwnerUsername,
     string? OwnerTitle, double Score, int EntryCount);
-
-public record RatEventHistoryResponse(
-    string RatId, string RatName, int TotalCount, int Page, int PageSize,
-    RatEventHistoryEntryResponse[] Results);
-
-public record RatEventHistoryEntryResponse(
-    string LobbyId, string EventDefinitionId, string EventType, int Rank, int Score,
-    int EntryCount, DateTime ScoredAt, EntrySnapshotResponse? Snapshot);
-
-public record EntrySnapshotResponse(
-    double SprintAbility, double AgilityAbility, double EnduranceAbility,
-    string DietQuality, string HealthState, double VitalityScore);
 
 public record TutorialEventResponse(TutorialEventResult? Event, decimal NewCurrencyBalance);
 public record TutorialEventResult(string EventName, string EventType, DateTime CompletedAt, TutorialEventEntry[] Entries, int CurrencyAwarded);
