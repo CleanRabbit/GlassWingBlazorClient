@@ -453,7 +453,7 @@ public record TutorialEventResponse(TutorialEventResult? Event, decimal NewCurre
 public record TutorialEventResult(string EventName, string EventType, DateTime CompletedAt, TutorialEventEntry[] Entries, int CurrencyAwarded);
 public record TutorialEventEntry(string ParticipantName, bool IsPlayer, int Score, int Placement);
 
-public record LobbyResponse(string Id, string EventDefinitionId, string EventName, string EventType, DateTime ScheduledRunAt, string Status, int EntrantsCount, int PlayerSlots);
+public record LobbyResponse(string Id, string EventDefinitionId, string EventName, string EventType, DateTime ScheduledRunAt, string Status, int EntrantsCount, int PlayerSlots, int EntryFee);
 public record LobbyResultEntryResponse(string? PlayerId, string EntrantLabel, bool IsNpc, int Score, int Placement, int CurrencyAwarded);
 
 public record PlayerEventsResponse(PlayerActiveEntry[] ActiveEntries, PlayerRecentResult[] RecentResults);
