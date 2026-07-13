@@ -6,3 +6,5 @@ obj/
 .DS_Store
 TestResults/
 .claude/
+artifacts-testing/
+e2e-*.log

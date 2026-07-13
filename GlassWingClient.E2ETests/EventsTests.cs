@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.Playwright;
+using static GlassWingClient.E2ETests.TestEnvironment;
 
 namespace GlassWingClient.E2ETests;
 
@@ -7,7 +8,6 @@ namespace GlassWingClient.E2ETests;
 [TestFixture]
 public class EventsTests : PageTest
 {
-    const string BaseUrl = "http://localhost:5001";
     readonly List<string> consoleErrors = new();
 
     [SetUp]

@@ -1,3 +1,5 @@
+using static GlassWingClient.E2ETests.TestEnvironment;
+
 namespace GlassWingClient.E2ETests;
 
 // Not parallelizable: every fixture in this suite drives the same single shared
@@ -7,7 +9,6 @@ namespace GlassWingClient.E2ETests;
 [TestFixture]
 public class HomeSmokeTests : PageTest
 {
-    const string BaseUrl = "http://localhost:5001";
     readonly List<string> consoleErrors = new();
 
     [SetUp]

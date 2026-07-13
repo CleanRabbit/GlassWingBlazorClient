@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using static GlassWingClient.E2ETests.TestEnvironment;
 
 namespace GlassWingClient.E2ETests;
 
@@ -6,7 +7,6 @@ namespace GlassWingClient.E2ETests;
 [TestFixture]
 public class HomeInteractionTests : PageTest
 {
-    const string BaseUrl = "http://localhost:5001";
     readonly List<string> consoleErrors = new();
 
     [SetUp]
