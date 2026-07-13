@@ -93,12 +93,12 @@ else
             // GET /api/challenges drains PendingCompletions server-side, so the client's
             // badge state should clear regardless of whether any toast fires below.
             ProgressState.ClearChallenges();
-            await ToastNewCompletionsAsync(data);
+            ToastNewCompletions(data);
         }
         loaded = true;
     }
 
-    async Task ToastNewCompletionsAsync(ChallengeWeekResponse response)
+    void ToastNewCompletions(ChallengeWeekResponse response)
     {
         var awardedCurrency = false;
 
@@ -117,10 +117,7 @@ else
         }
 
         if (awardedCurrency)
-        {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
-        }
+            PlayerState.SetCurrency(response.NewBalance);
     }
 
     static string DifficultyBadgeClass(string difficulty) => difficulty switch

@@ -156,12 +156,12 @@ else
             // GET /api/seasonal-event drains PendingSeasonalCompletions server-side, so the
             // client's badge state should clear regardless of whether any toast fires below.
             ProgressState.ClearSeasonalCompletion();
-            await ToastNewCompletionsAsync(data);
+            ToastNewCompletions(data);
         }
         loaded = true;
     }
 
-    async Task ToastNewCompletionsAsync(SeasonalEventResponse response)
+    void ToastNewCompletions(SeasonalEventResponse response)
     {
         if (response.Active is not { } active) return;
 
@@ -197,10 +197,7 @@ else
         }
 
         if (awardedCurrency)
-        {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
-        }
+            PlayerState.SetCurrency(response.NewBalance);
     }
 
     static string? FormatCosmeticNames(IReadOnlyList<string> ids) => ids.Count switch

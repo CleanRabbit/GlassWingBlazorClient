@@ -232,8 +232,7 @@ else
         var (result, err) = await Api.BuyListingAsync(target.Id);
         if (result is not null)
         {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            if (result.NewBalance.HasValue) PlayerState.SetCurrency(result.NewBalance.Value);
             listings       = listings.Where(l => l.Id != target.Id).ToArray();
             freeCarryCases = Math.Max(0, freeCarryCases - 1);
             buyTarget      = null;

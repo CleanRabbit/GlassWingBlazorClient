@@ -110,7 +110,7 @@ else
                 // GET /api/achievements drains the pending-unlock queue server-side, so the
                 // client's badge state should clear regardless of whether any toast fires below.
                 ProgressState.ClearAchievements();
-                await ToastNewUnlocksAsync(data);
+                ToastNewUnlocks(data);
             }
         }
         catch (Exception ex)
@@ -123,7 +123,7 @@ else
         }
     }
 
-    async Task ToastNewUnlocksAsync(AchievementsResponse response)
+    void ToastNewUnlocks(AchievementsResponse response)
     {
         var awardedCurrency = false;
 
@@ -146,10 +146,7 @@ else
         }
 
         if (awardedCurrency)
-        {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
-        }
+            PlayerState.SetCurrency(response.NewBalance);
     }
 
     static int Pct(int progress, int threshold) => threshold <= 0 ? 0 : Math.Min(100, progress * 100 / threshold);

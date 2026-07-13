@@ -44,6 +44,24 @@ public record RatResponse(
     // Ancestry (Task 13) — empty ({father: null, mother: null}) for starter/agency-adopted rats.
     Ancestry? Ancestry = null);
 
+// GET /api/rats — lightweight roster projection (Task 30 §4). Scoped to what Rats.razor's
+// table renders (name/sex/current abilities, IsRetired/IsPregnant) plus IsNursing, needed by
+// this same endpoint's other callers (Events.razor's event-entry eligibility filter,
+// RatDetail.razor's mate picker, Adoption.razor's surrender list). No phenotype, no
+// CompetitionHistory — fetch GetRatAsync(id) for full detail, or GetRatEventHistoryAsync(id)
+// for a rat's paginated competition history.
+public record RatRosterResponse(
+    string Id,
+    string Name,
+    string Sex,
+    string LifeStage,
+    bool IsRetired,
+    bool IsPregnant,
+    bool IsNursing,
+    double SprintAbility,
+    double AgilityAbility,
+    double EnduranceAbility);
+
 // --- Ancestry (Task 13) ---
 
 public record Ancestry(AncestorNode? Father, AncestorNode? Mother);
@@ -109,9 +127,7 @@ public record PublicRatResponse(
     DateTime? RetiredAt,
     string? RetirementReason,
     Ancestry? Ancestry,
-    string? ActiveCosmeticId,
-    double? HuskyProgress = null,
-    bool IsBandedHusky = false);
+    string? ActiveCosmeticId);
 
 // --- Tricks (Task 19) ---
 
@@ -269,8 +285,9 @@ public record WeatherInfo(
 // Progress/CriteriaType/CriteriaThreshold are raw catalogue/state fields — Threshold/display-
 // progress/Owned-style booleans are no longer pre-computed server-side (Task 29-30 §2). Progress
 // is a plain running count, except for AchievementCatalogueClient.AllEventTypesId ("all-event-types")
-// where it's a 3-bit mask the client PopCounts (see ProgressAchievements.razor).
-public record AchievementsResponse(AchievementCategoryGroup[] Categories, AchievementsSummary Summary);
+// where it's a 3-bit mask the client PopCounts (see ProgressAchievements.razor). NewBalance lets
+// the reward-toast flow patch currency directly instead of a follow-up GetPlayerProfileAsync().
+public record AchievementsResponse(AchievementCategoryGroup[] Categories, AchievementsSummary Summary, decimal NewBalance = 0);
 public record AchievementCategoryGroup(string Category, AchievementEntry[] Achievements);
 public record AchievementEntry(
     string Id, string Name, string Description,
@@ -304,7 +321,8 @@ public record DailyRewardCalendarEntry(int Day, DailyRewardEntry Reward, bool Cl
 
 public record ChallengeWeekResponse(
     int WeekNumber, DateTime WeekStart, DateTime WeekEnd,
-    ChallengeEntry[] Challenges, string[] PendingCompletions, ChallengeWeekSummary Summary);
+    ChallengeEntry[] Challenges, string[] PendingCompletions, ChallengeWeekSummary Summary,
+    decimal NewBalance = 0);
 
 public record ChallengeEntry(
     string Id, string Name, string Description, string Difficulty, string Category,
@@ -332,7 +350,7 @@ public record ActiveSeasonalEvent(
     SeasonalChallengeEntry[] Challenges, bool AllChallengesCompleted, string[] PendingCompletions);
 
 public record UpcomingSeasonalEvent(string Id, string Name, DateTime StartDate, DateTime EndDate);
-public record SeasonalEventResponse(ActiveSeasonalEvent? Active, UpcomingSeasonalEvent[] Upcoming);
+public record SeasonalEventResponse(ActiveSeasonalEvent? Active, UpcomingSeasonalEvent[] Upcoming, decimal NewBalance = 0);
 
 public record SeasonalEventSummaryInfo(
     bool Active, string Name, DateTime EndsAt, int DaysRemaining,
@@ -406,6 +424,7 @@ public record RatSummary(
 public record GameSettingsResponse(
     double BiologicalScale,
     double FoodConsumptionScale,
+    double HuskyOnsetAgeMonths,
     double WaterConsumptionScale,
     double TrainingCooldownScale,
     double IllnessProgressionScale,
@@ -545,7 +564,11 @@ public record MarketplaceListingResponse(
     DateTime CreatedAt,
     DateTime ExpiresAt,
     DateTime? SoldAt,
-    string? BuyerId);
+    string? BuyerId,
+    // Populated only on create/buy (currency changes as a side effect of those calls) — lets
+    // the client patch its currency display directly instead of a follow-up
+    // GetPlayerProfileAsync() (Task 30 §5).
+    decimal? NewBalance = null);
 
 public record RatSnapshotResponse(
     string Name,
@@ -555,9 +578,7 @@ public record RatSnapshotResponse(
     int Generation,
     double SprintScore,
     double AgilityScore,
-    double EnduranceScore,
-    double? HuskyProgress,
-    bool IsBandedHusky);
+    double EnduranceScore);
 
 // --- Adoption (Task 14) ---
 
@@ -571,7 +592,7 @@ public record PooledRatResponse(
     int SprintPotential, int AgilityPotential, int EndurancePotential,
     double WeightGrams, string? ActiveCosmeticId);
 
-public record AdoptResponse(RatResponse Rat, string CarryCaseId);
+public record AdoptResponse(RatResponse Rat, string CarryCaseId, decimal NewBalance);
 public record SurrenderResponse(int RemainingSurrenders);
 
 // --- Welfare (Task 15 groundwork — fee-waiver flags read by the Adoption page's modal) ---

@@ -135,8 +135,7 @@
         var (result, err) = await Api.AdoptRatAsync(ratId);
         if (result is not null)
         {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            PlayerState.SetCurrency(result.NewBalance);
             await Welfare.RefreshAsync();
         }
         else
@@ -300,8 +299,7 @@
             return;
         }
 
-        var profile = await Api.GetPlayerProfileAsync();
-        if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+        PlayerState.SetCurrency(result.NewBalance);
 
         if (wizardStep == 1)
         {
