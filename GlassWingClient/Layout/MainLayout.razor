@@ -48,7 +48,14 @@
         if (Auth.IsAuthenticated)
         {
             var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            if (profile is not null)
+            {
+                PlayerState.SetCurrency(profile.Currency);
+                // Login/Register already persist these; this backfills the Dev Bypass path,
+                // which never goes through either and would otherwise leave them null.
+                Auth.PlayerId ??= profile.PlayerId;
+                Auth.Username ??= profile.Username;
+            }
             await Welfare.RefreshAsync();
         }
     }
@@ -62,6 +69,8 @@
     {
         Auth.Token = null;
         Auth.IsDevBypass = false;
+        Auth.PlayerId = null;
+        Auth.Username = null;
         PlayerState.SetCurrency(0);
         RewardToasts.ClearShownAchievements();
         RewardToasts.ClearShownChallenges();

@@ -197,7 +197,9 @@ else
         var profile   = await profileTask;
         var result    = await listTask;
 
-        playerId       = profile?.PlayerId;
+        // Normally already known from login; profile.PlayerId only matters as a Dev Bypass fallback
+        // (profile is fetched regardless, for Currency, so this costs nothing extra).
+        playerId       = Auth.PlayerId ?? profile?.PlayerId;
         freeCarryCases = home?.CarryCases?.Count(c => c.RatId is null) ?? 0;
         if (profile is not null) PlayerState.SetCurrency(profile.Currency);
 
