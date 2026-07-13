@@ -231,12 +231,12 @@ else
     string? adoptError;
 
     // Surrender
-    RatResponse[] myRats = [];
+    RatRosterResponse[] myRats = [];
     bool myRatsLoaded;
     bool myRatsLoading;
     int surrenderCount;
     readonly HashSet<string> surrenderRowBusy = [];
-    RatResponse? surrenderTarget;
+    RatRosterResponse? surrenderTarget;
     bool surrenderModalBusy;
     string? surrenderModalError;
 
@@ -341,8 +341,7 @@ else
             totalCount = Math.Max(0, totalCount - 1);
             freeCarryCases = Math.Max(0, freeCarryCases - 1);
             adoptTarget = null;
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            PlayerState.SetCurrency(result.NewBalance);
             await Welfare.RefreshAsync();
             toastIsError = false;
             toastMessage = "Adopted! Check your carry cases on the Home page.";
@@ -379,7 +378,7 @@ else
         myRatsLoading = false;
     }
 
-    void OpenSurrenderConfirm(RatResponse r)
+    void OpenSurrenderConfirm(RatRosterResponse r)
     {
         surrenderTarget = r;
         surrenderModalError = null;

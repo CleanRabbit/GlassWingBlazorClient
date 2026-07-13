@@ -34,11 +34,13 @@ public class GlassWingApiClient(HttpClient http)
 
     // --- Rats ---
 
-    public async Task<RatResponse[]?> ListRatsAsync()
+    // Lightweight roster projection (Task 30 §4) — name/sex/life-stage/abilities plus the
+    // IsRetired/IsPregnant flags the roster table renders. Fetch GetRatAsync for full detail.
+    public async Task<RatRosterResponse[]?> ListRatsAsync()
     {
         var resp = await http.GetAsync("/api/rats/");
         return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<RatResponse[]>(JsonOpts)
+            ? await resp.Content.ReadFromJsonAsync<RatRosterResponse[]>(JsonOpts)
             : null;
     }
 

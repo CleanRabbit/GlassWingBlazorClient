@@ -265,7 +265,7 @@
         new("open-tricks",    "Open Tricks",    "TricksPerformance"),
     ];
 
-    RatResponse[]? rats;
+    RatRosterResponse[]? rats;
     LobbyResponse[]? lobbies;
     bool lobbiesLoading = true;
     PlayerEventsResponse? myEvents;
@@ -305,7 +305,7 @@
 
     async Task LoadTrickCatalogueAsync() => trickCatalogue = await Api.GetTrickCatalogueAsync();
 
-    static bool IsEventEligible(RatResponse r) =>
+    static bool IsEventEligible(RatRosterResponse r) =>
         !r.IsRetired && !r.IsNursing && r.LifeStage is not ("Weening" or "Infant");
 
     async Task RefreshAsync()

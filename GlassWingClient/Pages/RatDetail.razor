@@ -622,7 +622,7 @@ else
     bool showRetireConfirm;
     bool retireBusy;
     string? retireError;
-    RatResponse[] maleRats = [];
+    RatRosterResponse[] maleRats = [];
     string selectedMateId = "";
     bool breeding;
     string? breedMessage;
@@ -983,8 +983,7 @@ else
         var (result, err) = await Api.CreateListingAsync(Id, (int)listingPrice, DateTime.UtcNow.AddDays(7));
         if (result is not null)
         {
-            var profile = await Api.GetPlayerProfileAsync();
-            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            if (result.NewBalance.HasValue) PlayerState.SetCurrency(result.NewBalance.Value);
             Nav.NavigateTo("/marketplace");
         }
         else
