@@ -279,6 +279,12 @@ public class GlassWingApiClient(HttpClient http)
         {
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($"GET /api/home/ → {(int)resp.StatusCode} {resp.StatusCode}: {body}");
+            try
+            {
+                var err = JsonSerializer.Deserialize<ApiErrorResponse>(body, JsonOpts);
+                if (err?.Error is not null) return (null, err.Error);
+            }
+            catch (JsonException) { /* not a structured error body */ }
             return (null, string.IsNullOrWhiteSpace(body) ? $"HTTP {(int)resp.StatusCode}" : body);
         }
         return (await resp.Content.ReadFromJsonAsync<HomeResponse>(JsonOpts), null);
@@ -548,12 +554,13 @@ public class GlassWingApiClient(HttpClient http)
 
     // --- Events ---
 
-    public async Task<TutorialEventResponse?> RunTutorialAsync(string ratId)
+    public async Task<(TutorialEventResponse? Result, string? Error)> RunTutorialAsync(string ratId)
     {
         var resp = await http.PostAsJsonAsync("/api/events/tutorial", new { ratId }, JsonOpts);
-        return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<TutorialEventResponse>(JsonOpts)
-            : null;
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<TutorialEventResponse>(JsonOpts), null);
+        var (error, _) = await ParseErrorAsync(resp);
+        return (null, error);
     }
 
     public async Task<LobbyResponse[]?> GetOpenLobbiesAsync()
@@ -738,33 +745,33 @@ public class GlassWingApiClient(HttpClient http)
 
     public async Task<MarketplaceListingResponse[]?> GetMarketplaceListingsAsync()
     {
-        var resp = await http.GetAsync("/api/marketplace/listings");
+        var resp = await http.GetAsync("/api/marketplace/");
         return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<MarketplaceListingResponse[]>(JsonOpts)
+            ? (await resp.Content.ReadFromJsonAsync<PagedResponse<MarketplaceListingResponse>>(JsonOpts))?.Items
             : null;
     }
 
-    public async Task<(CreateListingResponse? Result, string? Error)> CreateListingAsync(string ratId, decimal price)
+    public async Task<(MarketplaceListingResponse? Result, string? Error)> CreateListingAsync(string ratId, int askingPrice, DateTime expiresAt)
     {
-        var resp = await http.PostAsJsonAsync("/api/marketplace/listings", new { ratId, price }, JsonOpts);
+        var resp = await http.PostAsJsonAsync("/api/marketplace/", new { ratId, askingPrice, expiresAt }, JsonOpts);
         if (resp.IsSuccessStatusCode)
-            return (await resp.Content.ReadFromJsonAsync<CreateListingResponse>(JsonOpts), null);
+            return (await resp.Content.ReadFromJsonAsync<MarketplaceListingResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<(BuyListingResponse? Result, string? Error)> BuyListingAsync(string listingId)
+    public async Task<(MarketplaceListingResponse? Result, string? Error)> BuyListingAsync(string listingId)
     {
-        var resp = await http.PostAsync($"/api/marketplace/listings/{listingId}/buy", null);
+        var resp = await http.PostAsync($"/api/marketplace/{listingId}/buy", null);
         if (resp.IsSuccessStatusCode)
-            return (await resp.Content.ReadFromJsonAsync<BuyListingResponse>(JsonOpts), null);
+            return (await resp.Content.ReadFromJsonAsync<MarketplaceListingResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
     public async Task<(bool Success, string? Error)> CancelListingAsync(string listingId)
     {
-        var resp = await http.DeleteAsync($"/api/marketplace/listings/{listingId}");
+        var resp = await http.DeleteAsync($"/api/marketplace/{listingId}");
         if (resp.IsSuccessStatusCode) return (true, null);
         var body = await resp.Content.ReadAsStringAsync();
         return (false, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);

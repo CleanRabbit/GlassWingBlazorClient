@@ -979,10 +979,12 @@ else
         if (listingPrice <= 0) { listingMessage = "Enter a valid price above 0."; listingSuccess = false; return; }
         listingBusy    = true;
         listingMessage = null;
-        var (result, err) = await Api.CreateListingAsync(Id, listingPrice);
+        // No duration picker in this form yet — defaults to a 7-day listing.
+        var (result, err) = await Api.CreateListingAsync(Id, (int)listingPrice, DateTime.UtcNow.AddDays(7));
         if (result is not null)
         {
-            PlayerState.SetCurrency(result.NewBalance);
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
             Nav.NavigateTo("/marketplace");
         }
         else

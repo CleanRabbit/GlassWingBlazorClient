@@ -678,6 +678,11 @@ else
             var cosmetics    = await cosmeticsTask;
             ownedCageDecorations = cosmetics?.CageDecorations.Where(c => c.Owned).ToArray() ?? [];
             var (data, error) = homeResult;
+            if (error == "HomeNotBootstrapped")
+            {
+                Nav.NavigateTo("/rats");
+                return;
+            }
             home         = data;
             loadError    = error;
             gameSettings = settings;

@@ -405,9 +405,10 @@
         tutorialBusy = true;
         tutorialResult = null;
         tutorialError = null;
-        tutorialResult = await Api.RunTutorialAsync(tutorialRatId);
+        var (result, error) = await Api.RunTutorialAsync(tutorialRatId);
+        tutorialResult = result;
         if (tutorialResult is null)
-            tutorialError = "Tutorial failed — check that the rat is eligible.";
+            tutorialError = error ?? "Tutorial failed — check that the rat is eligible.";
         else
         {
             PlayerState.SetCurrency(tutorialResult.NewCurrencyBalance);

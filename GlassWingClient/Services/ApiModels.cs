@@ -510,23 +510,36 @@ public record InventoryItem(string Id, string ItemType, string TypeId, string Na
 public record PlaceInventoryItemResponse(bool Success, string? Message);
 
 // --- Marketplace ---
+// Mirrors the real backend ListingResponse/RatSnapshotResponse (PlayerMarketplaceModule.cs) —
+// a prior version of this model was written against a guessed shape (flat RatName/Price/AgeMonths,
+// no Snapshot) that never actually matched what the API returns.
 
 public record MarketplaceListingResponse(
-    string ListingId,
-    string RatId,
-    string RatName,
-    int AgeMonths,
+    string Id,
     string SellerId,
     string SellerUsername,
-    decimal Price,
+    string RatId,
+    RatSnapshotResponse Snapshot,
+    int AskingPrice,
+    int ListingFeeCharged,
+    double TransactionFeePercent,
+    string Status,
     DateTime CreatedAt,
     DateTime ExpiresAt,
-    MarketplaceListingStats? Stats,
-    CoatPhenotype? Appearance);
+    DateTime? SoldAt,
+    string? BuyerId);
 
-public record MarketplaceListingStats(double? Sprint, double? Agility, double? Endurance);
-public record CreateListingResponse(string ListingId, DateTime ExpiresAt, decimal NewBalance);
-public record BuyListingResponse(string CarryCaseId, decimal NewBalance);
+public record RatSnapshotResponse(
+    string Name,
+    string GeneticDna,
+    RatPhenotype Phenotype,
+    DateTime DateOfBirth,
+    int Generation,
+    double SprintScore,
+    double AgilityScore,
+    double EnduranceScore,
+    double? HuskyProgress,
+    bool IsBandedHusky);
 
 // --- Adoption (Task 14) ---
 

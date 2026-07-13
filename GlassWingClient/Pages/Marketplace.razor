@@ -53,21 +53,18 @@ else
                         <div class="card h-100 @(isOwn ? "border-primary" : "")">
                             <div class="card-body d-flex flex-column">
                                 <div class="d-flex justify-content-between align-items-start mb-1">
-                                    <h6 class="card-title mb-0">@listing.RatName</h6>
-                                    <span class="fw-bold text-success ms-2 text-nowrap">@listing.Price.ToString("N0") cr</span>
+                                    <h6 class="card-title mb-0">@listing.Snapshot.Name</h6>
+                                    <span class="fw-bold text-success ms-2 text-nowrap">@listing.AskingPrice.ToString("N0") cr</span>
                                 </div>
                                 <p class="small text-muted mb-2">
-                                    @(isOwn ? "Your listing" : $"@{listing.SellerUsername}") · Age @listing.AgeMonths mo
+                                    @(isOwn ? "Your listing" : $"@{listing.SellerUsername}") · Born @listing.Snapshot.DateOfBirth.ToString("dd MMM yyyy")
                                 </p>
-                                @if (listing.Stats is { } stats)
-                                {
-                                    <div class="d-flex gap-3 small text-muted mb-2">
-                                        <span>Sp @FormatScore(stats.Sprint)</span>
-                                        <span>Ag @FormatScore(stats.Agility)</span>
-                                        <span>En @FormatScore(stats.Endurance)</span>
-                                    </div>
-                                }
-                                @if (listing.Appearance is { } coat)
+                                <div class="d-flex gap-3 small text-muted mb-2">
+                                    <span>Sp @FormatScore(listing.Snapshot.SprintScore)</span>
+                                    <span>Ag @FormatScore(listing.Snapshot.AgilityScore)</span>
+                                    <span>En @FormatScore(listing.Snapshot.EnduranceScore)</span>
+                                </div>
+                                @if (listing.Snapshot.Phenotype.Coat is { } coat)
                                 {
                                     <p class="small text-muted mb-2 fst-italic">@CoatBadgeString(coat)</p>
                                 }
@@ -76,8 +73,8 @@ else
                                     @if (isOwn)
                                     {
                                         <button class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => CancelAsync(listing.ListingId)"
-                                                disabled="@busyListings.Contains(listing.ListingId)">
+                                                @onclick="() => CancelAsync(listing.Id)"
+                                                disabled="@busyListings.Contains(listing.Id)">
                                             Cancel Listing
                                         </button>
                                     }
@@ -85,7 +82,7 @@ else
                                     {
                                         <button class="btn btn-sm btn-primary"
                                                 @onclick="() => OpenBuyConfirm(listing)"
-                                                disabled="@(freeCarryCases == 0 || busyListings.Contains(listing.ListingId))">
+                                                disabled="@(freeCarryCases == 0 || busyListings.Contains(listing.Id))">
                                             Buy
                                         </button>
                                     }
@@ -110,17 +107,17 @@ else
                 {
                     <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
                         <div>
-                            <div class="fw-semibold">@listing.RatName</div>
+                            <div class="fw-semibold">@listing.Snapshot.Name</div>
                             <div class="small text-muted">
-                                @listing.Price.ToString("N0") cr ·
-                                Age @listing.AgeMonths mo ·
+                                @listing.AskingPrice.ToString("N0") cr ·
+                                Born @listing.Snapshot.DateOfBirth.ToString("dd MMM yyyy") ·
                                 Listed @listing.CreatedAt.ToString("dd MMM") ·
                                 Expires @listing.ExpiresAt.ToString("dd MMM yyyy")
                             </div>
                         </div>
                         <button class="btn btn-sm btn-outline-danger flex-shrink-0"
-                                @onclick="() => CancelAsync(listing.ListingId)"
-                                disabled="@busyListings.Contains(listing.ListingId)">
+                                @onclick="() => CancelAsync(listing.Id)"
+                                disabled="@busyListings.Contains(listing.Id)">
                             Cancel
                         </button>
                     </div>
@@ -136,11 +133,11 @@ else
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Buy @buyTarget.RatName?</h5>
+                    <h5 class="modal-title">Buy @buyTarget.Snapshot.Name?</h5>
                     <button type="button" class="btn-close" @onclick="CloseBuyModal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-1">Price: <strong>@buyTarget.Price.ToString("N0") cr</strong></p>
+                    <p class="mb-1">Price: <strong>@buyTarget.AskingPrice.ToString("N0") cr</strong></p>
                     <p class="text-muted small mb-0">The rat will be placed into a free carry case.</p>
                     @if (buyError is not null)
                     {
@@ -230,15 +227,16 @@ else
         buyBusy  = true;
         buyError = null;
         var target = buyTarget;
-        var (result, err) = await Api.BuyListingAsync(target.ListingId);
+        var (result, err) = await Api.BuyListingAsync(target.Id);
         if (result is not null)
         {
-            PlayerState.SetCurrency(result.NewBalance);
-            listings       = listings.Where(l => l.ListingId != target.ListingId).ToArray();
+            var profile = await Api.GetPlayerProfileAsync();
+            if (profile is not null) PlayerState.SetCurrency(profile.Currency);
+            listings       = listings.Where(l => l.Id != target.Id).ToArray();
             freeCarryCases = Math.Max(0, freeCarryCases - 1);
             buyTarget      = null;
             toastIsError   = false;
-            toastMessage   = $"{target.RatName} purchased! Check your carry cases on the home page.";
+            toastMessage   = $"{target.Snapshot.Name} purchased! Check your carry cases on the home page.";
         }
         else
         {
@@ -253,7 +251,7 @@ else
         var (success, err) = await Api.CancelListingAsync(listingId);
         if (success)
         {
-            listings     = listings.Where(l => l.ListingId != listingId).ToArray();
+            listings     = listings.Where(l => l.Id != listingId).ToArray();
             toastIsError = false;
             toastMessage = "Listing cancelled.";
         }
