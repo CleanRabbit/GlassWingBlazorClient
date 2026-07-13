@@ -101,7 +101,7 @@
         {
             @foreach (var lobby in lobbies)
             {
-                var fee = EntryFee(lobby.EventDefinitionId);
+                var fee = lobby.EntryFee;
                 var isActive = activeLobbyId == lobby.Id;
                 <div class="card mb-2">
                     <div class="card-body py-2 px-3">
@@ -430,7 +430,7 @@
             activeLobbyId = null;
             activeRatId = string.Empty;
             selectedRoutine.Clear();
-            if (EntryFee(lobby.EventDefinitionId) > 0)
+            if (lobby.EntryFee > 0)
             {
                 var profile = await Api.GetPlayerProfileAsync();
                 if (profile is not null) PlayerState.SetCurrency(profile.Currency);
@@ -468,13 +468,6 @@
         }
         createBusy = false;
     }
-
-    static int EntryFee(string definitionId) => definitionId switch
-    {
-        var id when id.StartsWith("hourly-") => 20,
-        var id when id.StartsWith("daily-")  => 50,
-        _                                     => 0,
-    };
 
     static string TypeBadgeClass(string eventType) => eventType switch
     {

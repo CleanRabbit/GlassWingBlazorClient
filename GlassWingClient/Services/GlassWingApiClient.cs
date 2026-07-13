@@ -563,11 +563,14 @@ public class GlassWingApiClient(HttpClient http)
         return (null, error);
     }
 
-    public async Task<LobbyResponse[]?> GetOpenLobbiesAsync()
+    // Server clamps pageSize to 1-50; the events page currently shows the whole page in one
+    // list with no pager control, so request the max page size rather than build pager UI for
+    // what's realistically a small number of concurrently open lobbies today.
+    public async Task<LobbyResponse[]?> GetOpenLobbiesAsync(int page = 1, int pageSize = 50)
     {
-        var resp = await http.GetAsync("/api/events");
+        var resp = await http.GetAsync($"/api/events?page={page}&pageSize={pageSize}");
         return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<LobbyResponse[]>(JsonOpts)
+            ? (await resp.Content.ReadFromJsonAsync<PagedResponse<LobbyResponse>>(JsonOpts))?.Items
             : null;
     }
 
