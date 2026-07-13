@@ -37,6 +37,23 @@ public class RatDetailTests : PageTest
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = name })).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
+    // Regression check for a bug where the client's RatResponse model had no top-level
+    // WeightGrams field (silently dropped on deserialization) while HealthState had a bogus one
+    // that never matched anything in the API response — the page always showed "0.0g" regardless
+    // of the rat's real weight.
+    [Test]
+    public async Task WeightDisplaysARealNonZeroValue()
+    {
+        await OpenRatByNameAsync("Spudder");
+        var weightCell = Page.Locator("tr", new() { HasTextString = "Weight" }).Locator("td");
+        await Expect(weightCell).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        var text = await weightCell.InnerTextAsync();
+        var grams = double.Parse(text.TrimEnd('g'));
+        Assert.That(grams, Is.GreaterThan(0), () => $"Weight displayed as {text} — expected a real non-zero value");
+
+        Assert.That(consoleErrors, Is.Empty, () => $"Console errors: {string.Join("; ", consoleErrors)}");
+    }
+
     [Test]
     public async Task TrainingSprintSucceedsOrGracefullyReportsCooldown()
     {

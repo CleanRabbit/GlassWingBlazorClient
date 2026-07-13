@@ -26,6 +26,9 @@ public record RatResponse(
     int SprintPotential = 100,
     int AgilityPotential = 100,
     int EndurancePotential = 100,
+    // Top-level on RatResponse (RatsModule.cs), not nested under HealthState — this was missing
+    // entirely, so the real value was silently dropped on deserialization.
+    double WeightGrams = 0,
     bool IsNursing = false,
     bool IsProtective = false,
     DateTime DateOfBirth = default,
@@ -174,7 +177,6 @@ public record ApiProblemDetails(string? Title, string? Detail);
 
 public record HealthState(
     string? Vitality,
-    double WeightGrams,
     double BodyLengthCm,
     ActiveIllness[]? ActiveIllnesses);
 
