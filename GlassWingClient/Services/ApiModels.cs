@@ -388,6 +388,15 @@ public record InstalledBowlInfo(string Id, string Name, int CapacityRatDays, dou
 public record InstalledBottleInfo(string Id, string Name, int CapacityRatDays, double Cleanliness = 100, double Condition = 100);
 public record InstalledAccessoryInfo(string Id, string Name, string? Description, double Cleanliness = 100, double Condition = 100);
 
+public record RenameHomeResponse(string Name);
+
+// Task 29 §5 — POST /api/home/cages/{cageId}/train. ExcludedRatIds maps ratId -> exclusion
+// reason ("Infant"/"Nursing"/"Protective"/"Retired"/"Weening"), mirroring the server's own
+// GetTrainingExclusionReason so the client can show why a rat sat out without duplicating
+// the eligibility logic itself.
+public record StartTrainingSessionResponse(
+    DateTime SessionUntil, string[] RatIds, TrainingBonus Efficacy, Dictionary<string, string> ExcludedRatIds);
+
 public record RatSummary(
     string Id, string Name, string LifeStage = "Adult", bool IsNursing = false, bool IsProtective = false,
     PlaySessionInfo? PlaySession = null);

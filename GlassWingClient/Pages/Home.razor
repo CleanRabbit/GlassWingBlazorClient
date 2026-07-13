@@ -558,6 +558,32 @@ else
                                     <span class="@EfficacyClass(eff.Endurance)">End +@eff.Endurance.ToString("F1")</span>
                                 </div>
                             }
+                            @{
+                                var trainingUntil = trainingSessionUntil.GetValueOrDefault(cage.Id);
+                                var trainingActive = trainingUntil > DateTime.UtcNow;
+                            }
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                @if (trainingActive)
+                                {
+                                    <span class="text-muted">Training until @trainingUntil.ToLocalTime().ToString("HH:mm")</span>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            disabled="@(cage.Regime is null || trainingBusy.Contains(cage.Id))"
+                                            @onclick="() => StartTrainingAsync(cage.Id)">
+                                        @(trainingBusy.Contains(cage.Id) ? "..." : "Start Training")
+                                    </button>
+                                }
+                            </div>
+                            @if (trainingErrors.TryGetValue(cage.Id, out var trainErr) && trainErr is not null)
+                            {
+                                <div class="text-danger mt-1">@trainErr</div>
+                            }
+                            else if (trainingResults.TryGetValue(cage.Id, out var trainMsg) && trainMsg is not null)
+                            {
+                                <div class="text-success mt-1">@trainMsg</div>
+                            }
                         </div>
 
                     </div>
@@ -631,6 +657,10 @@ else
     CosmeticEntry[] ownedCageDecorations = [];
     readonly HashSet<string> cosmeticBusy = [];
     readonly Dictionary<string, string?> cosmeticErrors = [];
+    readonly HashSet<string> trainingBusy = [];
+    readonly Dictionary<string, DateTime> trainingSessionUntil = [];
+    readonly Dictionary<string, string?> trainingErrors = [];
+    readonly Dictionary<string, string?> trainingResults = [];
 
     static string LifeStageBadgeClass(string lifeStage) =>
         lifeStage == "Weening" ? "bg-danger-subtle text-danger-emphasis border border-danger-subtle" : "bg-secondary";
@@ -780,10 +810,13 @@ else
             }
         }
 
-        // Whether this succeeded or hit a soft 409 (already claimed, e.g. two open tabs),
-        // just refresh home state — no error UI for this banner per the design doc.
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) { home = data; ProgressState.ApplyHomeSnapshot(home); }
+        // Whether this succeeded or hit a soft 409 (already claimed, e.g. two open tabs), the
+        // reward is not available again until tomorrow either way — patch that flag locally
+        // instead of a full re-fetch (Task 29 §7 / Task 30 §3), and drop the nav badge the same
+        // way ProgressDaily.razor already does after its own claim.
+        if (home?.DailyReward is not null)
+            home = home with { DailyReward = home.DailyReward with { Available = false } };
+        ProgressState.ClearDailyReward();
         dailyRewardBusy = false;
     }
 
@@ -814,10 +847,32 @@ else
     async Task ConfirmRenameAsync()
     {
         if (string.IsNullOrWhiteSpace(renameValue)) return;
-        await Api.RenameHomeAsync(renameValue);
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (result, _) = await Api.RenameHomeAsync(renameValue);
+        if (result is not null && home is not null) home = home with { Name = result.Name };
         renaming = false;
+    }
+
+    // Replaces one cage in the local Cages array with the mutation response's updated cage —
+    // preserves every other field on `home` (notifications, daily reward, welfare, etc.) instead
+    // of clobbering them with a re-fetch (Task 29 §7 / Task 30 §3).
+    void ReplaceCage(CageResponse updated)
+    {
+        if (home is null) return;
+        home = home with { Cages = home.Cages.Select(c => c.Id == updated.Id ? updated : c).ToArray() };
+    }
+
+    // Bowl/bottle/accessory installs pull an item out of a storage drawer server-side; the
+    // widened cage-mutation responses don't carry the drawers' new state too (see worktree
+    // report), so remove the consumed item from local drawer state here instead.
+    void RemoveDrawerItem(string itemId)
+    {
+        if (home?.StorageDrawers is not { Length: > 0 }) return;
+        home = home with
+        {
+            StorageDrawers = home.StorageDrawers.Select(d => !d.Items.Any(i => i.Id == itemId)
+                ? d
+                : d with { Items = d.Items.Where(i => i.Id != itemId).ToArray(), SlotsAvailable = d.SlotsAvailable + 1 }).ToArray()
+        };
     }
 
     void StartCageRename(CageResponse cage)
@@ -844,11 +899,10 @@ else
         if (string.IsNullOrWhiteSpace(cageRenameValue)) return;
         cageRenameBusy = true;
         cageRenameError = null;
-        var (success, error) = await Api.RenameCageAsync(cageId, cageRenameValue.Trim());
-        if (success)
+        var (cage, error) = await Api.RenameCageAsync(cageId, cageRenameValue.Trim());
+        if (cage is not null)
         {
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
             renamingCageId = null;
         }
         else
@@ -870,18 +924,38 @@ else
         regimeBusy = true;
         regimeError = null;
         var regimeId = string.IsNullOrEmpty(regimePickerValue) ? null : regimePickerValue;
-        var success = await Api.SetRegimeAsync(cageId, regimeId);
-        if (success)
+        var (cage, error) = await Api.SetRegimeAsync(cageId, regimeId);
+        if (cage is not null)
         {
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
             settingRegimeCageId = null;
         }
         else
         {
-            regimeError = "Failed to set regime.";
+            regimeError = error ?? "Failed to set regime.";
         }
         regimeBusy = false;
+    }
+
+    async Task StartTrainingAsync(string cageId)
+    {
+        trainingBusy.Add(cageId);
+        trainingErrors.Remove(cageId);
+        trainingResults.Remove(cageId);
+        var (result, error) = await Api.StartCageTrainingAsync(cageId);
+        if (result is not null)
+        {
+            trainingSessionUntil[cageId] = result.SessionUntil;
+            var until = result.SessionUntil.ToLocalTime().ToString("HH:mm");
+            trainingResults[cageId] = result.ExcludedRatIds.Count > 0
+                ? $"Training {result.RatIds.Length} rat(s) until {until} ({result.ExcludedRatIds.Count} sat out)."
+                : $"Training {result.RatIds.Length} rat(s) until {until}.";
+        }
+        else
+        {
+            trainingErrors[cageId] = error ?? "Failed to start training.";
+        }
+        trainingBusy.Remove(cageId);
     }
 
     async Task AddBowlAsync(string cageId)
@@ -890,12 +964,12 @@ else
         if (string.IsNullOrEmpty(itemId)) return;
         bowlsBusy.Add(cageId);
         bowlErrors.Remove(cageId);
-        var (success, error) = await Api.InstallBowlFromDrawerAsync(cageId, itemId);
-        if (success)
+        var (cage, error) = await Api.InstallBowlFromDrawerAsync(cageId, itemId);
+        if (cage is not null)
         {
             bowlPickerValues.Remove(cageId);
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
+            RemoveDrawerItem(itemId);
         }
         else
         {
@@ -908,10 +982,9 @@ else
     {
         bowlsBusy.Add(cageId);
         bowlErrors.Remove(cageId);
-        if (!await Api.RemoveBowlAsync(cageId, bowlId))
-            bowlErrors[cageId] = "Failed to remove bowl.";
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (cage, error) = await Api.RemoveBowlAsync(cageId, bowlId);
+        if (cage is not null) ReplaceCage(cage);
+        else bowlErrors[cageId] = error ?? "Failed to remove bowl.";
         bowlsBusy.Remove(cageId);
     }
 
@@ -921,12 +994,12 @@ else
         if (string.IsNullOrEmpty(itemId)) return;
         bottlesBusy.Add(cageId);
         bottleErrors.Remove(cageId);
-        var (success, error) = await Api.InstallBottleFromDrawerAsync(cageId, itemId);
-        if (success)
+        var (cage, error) = await Api.InstallBottleFromDrawerAsync(cageId, itemId);
+        if (cage is not null)
         {
             bottlePickerValues.Remove(cageId);
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
+            RemoveDrawerItem(itemId);
         }
         else
         {
@@ -941,12 +1014,12 @@ else
         if (string.IsNullOrEmpty(itemId)) return;
         accessoriesBusy.Add(cageId);
         accessoryErrors.Remove(cageId);
-        var (success, error) = await Api.InstallAccessoryFromDrawerAsync(cageId, itemId);
-        if (success)
+        var (cage, error) = await Api.InstallAccessoryFromDrawerAsync(cageId, itemId);
+        if (cage is not null)
         {
             accessoryPickerValues.Remove(cageId);
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
+            RemoveDrawerItem(itemId);
         }
         else
         {
@@ -959,11 +1032,9 @@ else
     {
         accessoriesBusy.Add(cageId);
         accessoryErrors.Remove(cageId);
-        var (success, error) = await Api.RemoveAccessoryAsync(cageId, accessoryId);
-        if (!success)
-            accessoryErrors[cageId] = error ?? "Failed to remove accessory.";
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (cage, error) = await Api.RemoveAccessoryAsync(cageId, accessoryId);
+        if (cage is not null) ReplaceCage(cage);
+        else accessoryErrors[cageId] = error ?? "Failed to remove accessory.";
         accessoriesBusy.Remove(cageId);
     }
 
@@ -971,10 +1042,9 @@ else
     {
         bottlesBusy.Add(cageId);
         bottleErrors.Remove(cageId);
-        if (!await Api.RemoveBottleAsync(cageId, bottleId))
-            bottleErrors[cageId] = "Failed to remove bottle.";
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (cage, error) = await Api.RemoveBottleAsync(cageId, bottleId);
+        if (cage is not null) ReplaceCage(cage);
+        else bottleErrors[cageId] = error ?? "Failed to remove bottle.";
         bottlesBusy.Remove(cageId);
     }
 
@@ -987,18 +1057,16 @@ else
     async Task RefillFoodAsync(string cageId, string? foodTypeId = null)
     {
         busyCages.Add(cageId);
-        await Api.RefillFoodAsync(cageId, string.IsNullOrEmpty(foodTypeId) ? null : foodTypeId);
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (cage, _) = await Api.RefillFoodAsync(cageId, string.IsNullOrEmpty(foodTypeId) ? null : foodTypeId);
+        if (cage is not null) ReplaceCage(cage);
         busyCages.Remove(cageId);
     }
 
     async Task RefillWaterAsync(string cageId)
     {
         busyCages.Add(cageId);
-        await Api.RefillWaterAsync(cageId);
-        var (data, _) = await Api.GetHomeAsync();
-        if (data is not null) home = data;
+        var (cage, _) = await Api.RefillWaterAsync(cageId);
+        if (cage is not null) ReplaceCage(cage);
         busyCages.Remove(cageId);
     }
 
@@ -1006,11 +1074,10 @@ else
     {
         cosmeticBusy.Add(cageId);
         cosmeticErrors.Remove(cageId);
-        var (success, err) = await Api.SetCageCosmeticAsync(cageId, string.IsNullOrEmpty(cosmeticId) ? null : cosmeticId);
-        if (success)
+        var (cage, err) = await Api.SetCageCosmeticAsync(cageId, string.IsNullOrEmpty(cosmeticId) ? null : cosmeticId);
+        if (cage is not null)
         {
-            var (data, _) = await Api.GetHomeAsync();
-            if (data is not null) home = data;
+            ReplaceCage(cage);
         }
         else
         {
