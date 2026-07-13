@@ -632,16 +632,6 @@ public class GlassWingApiClient(HttpClient http)
         return (null, string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }
 
-    public async Task<RatEventHistoryResponse?> GetRatEventHistoryAsync(string ratId, string? eventType = null, int page = 1, int pageSize = 20)
-    {
-        var url = $"/api/rats/{ratId}/events?page={page}&pageSize={pageSize}";
-        if (eventType is not null) url += $"&eventType={eventType}";
-        var resp = await http.GetAsync(url);
-        return resp.IsSuccessStatusCode
-            ? await resp.Content.ReadFromJsonAsync<RatEventHistoryResponse>(JsonOpts)
-            : null;
-    }
-
     public async Task<LobbyResponse?> GetLobbyAsync(string lobbyId)
     {
         var resp = await http.GetAsync($"/api/events/{lobbyId}");
