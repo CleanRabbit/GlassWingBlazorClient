@@ -9,4 +9,9 @@ namespace GlassWingClient.E2ETests;
 public static class TestEnvironment
 {
     public const string BaseUrl = "http://localhost:5011";
+
+    // For the rare test that verifies backend state directly (bypassing the client) rather than
+    // purely through the UI — must stay in step with Program.cs's client-side port->API mapping,
+    // or a direct-API assertion silently reads the interactive dev API/database instead.
+    public const string ApiBaseUrl = "http://localhost:5223";
 }

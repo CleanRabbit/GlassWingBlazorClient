@@ -13,8 +13,8 @@
 
     Lifecycle: drop glasswing_test -> start Testing-profile API+client -> wait for both to be
     ready -> bootstrap the DevPlayer's starter rat over HTTP (DevBypass authenticates any request
-    as DevPlayer, no login needed) -> run dotnet test -> stop both processes -> drop
-    glasswing_test again.
+    as DevPlayer, no login needed) -> seed the fixed-name fixture rats a few RatDetailTests need
+    (seed-test-fixtures.js) -> run dotnet test -> stop both processes -> drop glasswing_test again.
 
 .PARAMETER BackendRepoPath
     Path to the GlassWing backend repo's API project. Defaults to this machine's sibling-repo
@@ -92,6 +92,10 @@ try {
 
     Write-Host "Bootstrapping DevPlayer's starter rat..."
     Invoke-RestMethod -Uri "$ApiUrl/api/rats/starter" -Method Post -ContentType "application/json" | Out-Null
+
+    Write-Host "Seeding fixture rats (Dandelion/Robin/Cider)..."
+    Get-Content (Join-Path $PSScriptRoot "seed-test-fixtures.js") -Raw |
+        docker exec -i glasswing-mongo mongosh $TestDbConnection --quiet | Out-Null
 
     Write-Host "Running E2E test suite..."
     dotnet test $E2EProjectPath

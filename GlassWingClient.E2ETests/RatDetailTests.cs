@@ -15,14 +15,16 @@ public class RatDetailTests : PageTest
         consoleErrors.Clear();
         Page.Console += (_, msg) =>
         {
-            // Training/breeding can legitimately 422 on repeat runs (cooldowns, already-pregnant,
-            // litter limits) — those are correct backend behavior, not bugs, and are asserted on
-            // via the on-page message instead of being treated as console errors here.
-            if (msg.Type == "error" && !msg.Text.Contains("status of 422")) consoleErrors.Add(msg.Text);
+            // Training can legitimately 422 (cooldowns) and breeding can legitimately 409
+            // (cooldowns, already-pregnant, litter limits) on repeat runs — those are correct
+            // backend behavior, not bugs, and are asserted on via the on-page message instead of
+            // being treated as console errors here.
+            if (msg.Type == "error" && !msg.Text.Contains("status of 422") && !msg.Text.Contains("status of 409"))
+                consoleErrors.Add(msg.Text);
         };
         Page.Response += (_, resp) =>
         {
-            if (resp.Status >= 400 && resp.Status != 422) consoleErrors.Add($"{resp.Status} {resp.Url}");
+            if (resp.Status >= 400 && resp.Status != 422 && resp.Status != 409) consoleErrors.Add($"{resp.Status} {resp.Url}");
         };
     }
 
@@ -37,6 +39,23 @@ public class RatDetailTests : PageTest
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = name })).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
+    // For tests that don't care which specific rat they exercise — just that at least one
+    // exists — rather than hardcoding a name that depends on manually-curated dev-DB state
+    // (see Task33_Design.md: exactly the dependency an isolated test database exposes). Every
+    // account has at least the auto-bootstrapped starter rat, regardless of environment.
+    async Task<string> OpenFirstRatAsync()
+    {
+        await Page.GotoAsync($"{BaseUrl}/rats");
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "My Rats" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        // Rats.razor puts the click handler on the <tr> itself (no <a> tag) — the first cell's
+        // text is the rat's name, optionally followed by a Retired/Pregnant badge.
+        var firstRow = Page.Locator("table tbody tr").First;
+        var name = (await firstRow.Locator("td").First.InnerTextAsync()).Split('\n')[0].Trim();
+        await firstRow.ClickAsync();
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = name })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        return name;
+    }
+
     // Regression check for a bug where the client's RatResponse model had no top-level
     // WeightGrams field (silently dropped on deserialization) while HealthState had a bogus one
     // that never matched anything in the API response — the page always showed "0.0g" regardless
@@ -44,7 +63,7 @@ public class RatDetailTests : PageTest
     [Test]
     public async Task WeightDisplaysARealNonZeroValue()
     {
-        await OpenRatByNameAsync("Spudder");
+        await OpenFirstRatAsync();
         var weightCell = Page.Locator("tr", new() { HasTextString = "Weight" }).Locator("td");
         await Expect(weightCell).ToBeVisibleAsync(new() { Timeout = 30_000 });
         var text = await weightCell.InnerTextAsync();
@@ -57,7 +76,7 @@ public class RatDetailTests : PageTest
     [Test]
     public async Task TrainingSprintSucceedsOrGracefullyReportsCooldown()
     {
-        await OpenRatByNameAsync("Spudder");
+        await OpenFirstRatAsync();
         var sprintButton = Page.GetByRole(AriaRole.Button, new() { Name = "Sprint", Exact = true });
         await Expect(sprintButton).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await sprintButton.ClickAsync();

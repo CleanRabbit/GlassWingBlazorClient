@@ -92,7 +92,7 @@ public class EventsTests : PageTest
 
         await Expect(Page.Locator(".alert-danger")).Not.ToBeVisibleAsync(new() { Timeout = 10_000 });
 
-        using var http = new HttpClient { BaseAddress = new Uri("http://localhost:5123") };
+        using var http = new HttpClient { BaseAddress = new Uri(ApiBaseUrl) };
         var lobbies = await http.GetFromJsonAsync<OpenLobbiesPage>("/api/events?page=1&pageSize=200");
         Assert.That(lobbies, Is.Not.Null);
         Assert.That(lobbies!.Items, Has.Some.Matches<LobbyItem>(
