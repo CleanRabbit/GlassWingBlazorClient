@@ -696,7 +696,7 @@ else
         cosmeticBusy = false;
     }
 
-    async Task LoadTrickCatalogueAsync() => trickCatalogue = await Api.GetTrickCatalogueAsync();
+    async Task LoadTrickCatalogueAsync() => trickCatalogue = await Api.GetTrickCatalogueAsync(Id);
 
     string TrickName(string trickId) =>
         trickCatalogue?.Categories.SelectMany(c => c.Tricks).FirstOrDefault(t => t.Id == trickId)?.Name ?? trickId;
