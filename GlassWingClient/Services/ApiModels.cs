@@ -247,13 +247,16 @@ public record HomeResponse(
     string Id,
     string OwnerId,
     string Name,
-    CageResponse[] Cages,
+    CageResponse?[] Cages,
     HomeCarryCaseInfo[]? CarryCases = null,
     HomeStorageDrawerInfo[]? StorageDrawers = null,
     HomeFoodStorageBinInfo[]? FoodStorageBins = null,
     int? CageSlots = null,
+    string? MaxCageTier = null,
     int? CagesOccupied = null,
     int? TotalAccessorySlots = null,
+    int? AccessoriesOccupied = null,
+    int[]? EmptyAccessorySlotIndices = null,
     AutoFillNotification[]? AutoFills = null,
     LifeStageNotification[]? LifeStageNotifications = null,
     NewAchievementNotice[]? NewAchievements = null,
@@ -267,6 +270,14 @@ public record HomeResponse(
     HomeWeatherAccessoryInfo[]? WeatherAccessories = null,
     WeatherInfo? Weather = null,
     WelfareStatus? Welfare = null);
+
+// ── Estate Agency (Task 37) ──────────────────────────────────────────────────
+
+public record HomeTierInfo(
+    string Id, string Name, string Tier, int CageSlots, string MaxCageTier,
+    int HomeAccessorySlots, int InGamePrice, bool IsCurrent, bool Fits);
+
+public record HomeUpgradeResponse(string HomeTypeId, string HomeTypeName, int NewBalance);
 
 // --- Vet/OTC home extras ---
 
@@ -528,7 +539,9 @@ public record ShopFoodType(string Id, string Name, int QualityTier, int InGamePr
 public record ShopCarryCaseType(string Id, string Name, int Price);
 public record ShopStorageDrawersType(string Id, string Name, int SlotsPerUnit, int Price);
 
-public record CagePurchaseResponse(string CageId, string CageName, string CageTypeId, decimal NewBalance);
+public record CagePurchaseResponse(
+    string CageId, string CageName, string CageTypeId, decimal NewBalance,
+    decimal Refund = 0, string[]? DiscardedItemNotices = null);
 public record InventoryPurchaseResponse(string InventoryItemId, string TypeId, string Name, decimal NewBalance);
 public record FoodStorageBinPurchaseResponse(string BinId, int CapacityRatDays, decimal NewBalance, int AnchorIndex = 0);
 public record CarryCasePurchaseResponse(string CarryCaseId, int AnchorIndex, decimal NewBalance);

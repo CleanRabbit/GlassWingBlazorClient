@@ -65,7 +65,7 @@ else
                                 @if (activePanelId == cc.Id && panelIsCarryCase)
                                 {
                                     <div class="border rounded p-2 bg-light">
-                                        @if (home.Cages.Length == 0)
+                                        @if (home.Cages.OfType<CageResponse>().Any() == false)
                                         {
                                             <p class="text-muted small mb-1">No cages available. <a href="/shop/cages">Buy one</a>.</p>
                                             <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -75,7 +75,7 @@ else
                                             <label class="form-label small">Place in cage</label>
                                             <select class="form-select form-select-sm mb-2" @bind="selectedCageId">
                                                 <option value="">— select cage —</option>
-                                                @foreach (var cage in home.Cages)
+                                                @foreach (var cage in home.Cages.OfType<CageResponse>())
                                                 {
                                                     <option value="@cage.Id">@cage.Name</option>
                                                 }
@@ -170,7 +170,7 @@ else
                                     @if (activePanelId == item.Id && !panelIsCarryCase)
                                     {
                                         <div class="border rounded p-2 mb-2 bg-light">
-                                            @if (home.Cages.Length == 0)
+                                            @if (home.Cages.OfType<CageResponse>().Any() == false)
                                             {
                                                 <p class="text-muted small mb-1">No cages available. <a href="/shop/cages">Buy one</a>.</p>
                                                 <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">Cancel</button>
@@ -180,7 +180,7 @@ else
                                                 <label class="form-label small">Install in cage</label>
                                                 <select class="form-select form-select-sm mb-2" @bind="selectedCageId">
                                                     <option value="">— select cage —</option>
-                                                    @foreach (var cage in home.Cages)
+                                                    @foreach (var cage in home.Cages.OfType<CageResponse>())
                                                     {
                                                         <option value="@cage.Id">@cage.Name</option>
                                                     }
@@ -422,7 +422,7 @@ else
     void ReplaceCage(CageResponse updated)
     {
         if (home is null) return;
-        home = home with { Cages = home.Cages.Select(c => c.Id == updated.Id ? updated : c).ToArray() };
+        home = home with { Cages = home.Cages.Select(c => c?.Id == updated.Id ? updated : c).ToArray() };
     }
 
     // Bowl/bottle/accessory installs pull an item out of a storage drawer server-side; the

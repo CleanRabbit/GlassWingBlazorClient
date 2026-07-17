@@ -686,9 +686,9 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
-    public async Task<(CagePurchaseResponse? Result, string? Error)> BuyCageAsync(string cageTypeId)
+    public async Task<(CagePurchaseResponse? Result, string? Error)> BuyCageAsync(string cageTypeId, int slotIndex = 0)
     {
-        var resp = await http.PostAsJsonAsync("/api/shop/buy/cage", new { cageTypeId }, JsonOpts);
+        var resp = await http.PostAsJsonAsync("/api/shop/buy/cage", new { cageTypeId, slotIndex }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (await resp.Content.ReadFromJsonAsync<CagePurchaseResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
@@ -754,6 +754,25 @@ public class GlassWingApiClient(HttpClient http)
         var resp = await http.PostAsJsonAsync("/api/shop/buy/food", new { binId, foodTypeId, ratDays }, JsonOpts);
         if (resp.IsSuccessStatusCode)
             return (await resp.Content.ReadFromJsonAsync<FoodPurchaseResponse>(JsonOpts), null);
+        var body = await resp.Content.ReadAsStringAsync();
+        return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
+    }
+
+    // --- Estate Agency (Task 37) ---
+
+    public async Task<HomeTierInfo[]?> GetHomeTiersAsync()
+    {
+        var resp = await http.GetAsync("/api/estate-agency/");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<HomeTierInfo[]>(JsonOpts)
+            : null;
+    }
+
+    public async Task<(HomeUpgradeResponse? Result, string? Error)> BuyHomeTierAsync(string homeTypeId)
+    {
+        var resp = await http.PostAsJsonAsync("/api/estate-agency/buy", new { homeTypeId }, JsonOpts);
+        if (resp.IsSuccessStatusCode)
+            return (await resp.Content.ReadFromJsonAsync<HomeUpgradeResponse>(JsonOpts), null);
         var body = await resp.Content.ReadAsStringAsync();
         return (null, (int)resp.StatusCode == 402 ? "Insufficient funds." : string.IsNullOrWhiteSpace(body) ? $"Error {(int)resp.StatusCode}" : body);
     }

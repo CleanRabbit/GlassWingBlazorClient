@@ -1,0 +1,117 @@
+@page "/estate-agency"
+@inject GlassWingApiClient Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+@inject PlayerStateService PlayerState
+
+<PageTitle>Estate Agency — GlassWing</PageTitle>
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <h1 class="mb-0">Estate Agency</h1>
+    @if (PlayerState.Currency.HasValue)
+    {
+        <span class="ms-auto badge bg-dark fs-6">@PlayerState.Currency.Value.ToString("N0") cr</span>
+    }
+</div>
+
+@if (!loaded)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else
+{
+    @if (buyError is not null)
+    {
+        <div class="alert alert-danger">@buyError</div>
+    }
+    <div class="row g-3">
+        @foreach (var tier in tiers)
+        {
+            var canAfford = PlayerState.Currency is null || PlayerState.Currency >= tier.InGamePrice;
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 @(tier.IsCurrent ? "border-primary" : "")">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="card-title mb-0">@tier.Name</h5>
+                            @if (tier.IsCurrent)
+                            {
+                                <span class="badge bg-primary">Current</span>
+                            }
+                        </div>
+                        <p class="small text-muted mb-2">@tier.InGamePrice.ToString("N0") cr</p>
+                        <ul class="list-unstyled small mb-3">
+                            <li>Cage slots: @tier.CageSlots</li>
+                            <li>Max cage tier: @tier.MaxCageTier</li>
+                            <li>Accessory slots: @tier.HomeAccessorySlots</li>
+                        </ul>
+                        @if (!tier.IsCurrent)
+                        {
+                            @if (!tier.Fits)
+                            {
+                                <p class="small text-danger mb-2">Your current cages/accessories don't fit here.</p>
+                            }
+                            else if (!canAfford)
+                            {
+                                <p class="small text-danger mb-2">Not enough currency.</p>
+                            }
+                            <button class="btn btn-sm btn-outline-primary mt-auto"
+                                    disabled="@(!tier.Fits || !canAfford || busy)"
+                                    @onclick="() => BuyAsync(tier.Id)">
+                                @(busy ? "..." : "Buy")
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    HomeTierInfo[] tiers = [];
+    bool loaded;
+    string? loadError;
+    bool busy;
+    string? buyError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            tiers = await Api.GetHomeTiersAsync() ?? [];
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            loaded = true;
+        }
+    }
+
+    async Task BuyAsync(string homeTypeId)
+    {
+        busy = true;
+        buyError = null;
+        var (result, error) = await Api.BuyHomeTierAsync(homeTypeId);
+        if (result is not null)
+        {
+            PlayerState.SetCurrency(result.NewBalance);
+            Nav.NavigateTo("/home");
+            return;
+        }
+        buyError = error ?? "Failed to buy home.";
+        busy = false;
+    }
+}

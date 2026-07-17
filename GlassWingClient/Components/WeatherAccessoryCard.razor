@@ -1,0 +1,41 @@
+@* Task 39 — one of the 5 accessory kinds now rendered per-slot in the unified Home Accessories
+   grid. The Weather card's own "Installed:" line (section 3) is unchanged and separate — that
+   answers "what's the environment doing", this answers "what's in this physical slot". *@
+
+<div class="card h-100">
+    <div class="card-body">
+        <h6 class="card-title">@(Type?.Name ?? Info.TypeId)</h6>
+        @if (Type is not null)
+        {
+            <p class="small text-muted mb-2">Suppresses: @Type.Suppresses</p>
+        }
+        <div class="d-flex justify-content-between mb-1">
+            <span class="small text-muted">Cleanliness</span>
+            <span class="small">@Info.Cleanliness.ToString("F0")%</span>
+        </div>
+        <div class="progress mb-2" style="height:6px">
+            <div class="progress-bar @BarClass(Info.Cleanliness)" style="width:@(Info.Cleanliness.ToString("F0"))%"></div>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+            <span class="small text-muted">Condition</span>
+            <span class="small">@Info.Condition.ToString("F0")%</span>
+        </div>
+        <div class="progress" style="height:6px">
+            <div class="progress-bar @BarClass(Info.Condition)" style="width:@(Info.Condition.ToString("F0"))%"></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HomeWeatherAccessoryInfo Info { get; set; } = null!;
+    [Parameter] public ShopCatalogueResponse? Catalogue { get; set; }
+
+    ShopWeatherAccessoryType? Type => Catalogue?.WeatherAccessories?.FirstOrDefault(t => t.Id == Info.TypeId);
+
+    static string BarClass(double level) => level switch
+    {
+        >= 60 => "bg-secondary",
+        >= 30 => "bg-warning text-dark",
+        _     => "bg-danger"
+    };
+}

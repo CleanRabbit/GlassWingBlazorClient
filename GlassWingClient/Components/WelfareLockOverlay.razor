@@ -152,8 +152,8 @@
 
         var cageA = Welfare.Status?.LoneCage.CageA;
         var cageB = Welfare.Status?.LoneCage.CageB;
-        var cageAInfo = home?.Cages.FirstOrDefault(c => c.Id == cageA?.CageId);
-        var cageBInfo = home?.Cages.FirstOrDefault(c => c.Id == cageB?.CageId);
+        var cageAInfo = home?.Cages.OfType<CageResponse>().FirstOrDefault(c => c.Id == cageA?.CageId);
+        var cageBInfo = home?.Cages.OfType<CageResponse>().FirstOrDefault(c => c.Id == cageB?.CageId);
         var ratB = cageBInfo?.Rats.FirstOrDefault();
 
         <h5 class="mb-2">Rats need company</h5>

@@ -1,0 +1,19 @@
+@* Task 39 — same content the old standalone Food Storage section rendered, now one card among
+   the unified Home Accessories grid instead of its own separate section. *@
+
+<div class="card h-100">
+    <div class="card-body">
+        <h6 class="card-title">Food Storage Bin</h6>
+        <p class="small text-muted mb-1">@Info.StoredRatDays.ToString("F0") / @Info.CapacityRatDays rat-days stored</p>
+        <div class="progress" style="height:8px">
+            <div class="progress-bar @BarClass" style="width:@(Pct.ToString("F0"))%"></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HomeFoodStorageBinInfo Info { get; set; } = null!;
+
+    double Pct => Info.CapacityRatDays > 0 ? Info.StoredRatDays / Info.CapacityRatDays * 100 : 0;
+    string BarClass => Pct < 25 ? "bg-danger" : Pct < 60 ? "bg-warning" : "bg-success";
+}

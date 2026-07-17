@@ -1,0 +1,26 @@
+@* Task 39 — one of the 5 accessory kinds now rendered per-slot in the unified Home Accessories
+   grid; previously only visible on Inventory.razor. *@
+
+<div class="card h-100">
+    <div class="card-body">
+        <h6 class="card-title">Storage Drawers</h6>
+        <p class="small text-muted mb-2">@(Info.Capacity - Info.SlotsAvailable) / @Info.Capacity slots used</p>
+        @if (Info.Items.Length == 0)
+        {
+            <p class="small text-muted mb-0">Empty</p>
+        }
+        else
+        {
+            <ul class="list-unstyled small mb-0">
+                @foreach (var group in Info.Items.GroupBy(i => i.Kind))
+                {
+                    <li>@group.Key: @group.Count()</li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HomeStorageDrawerInfo Info { get; set; } = null!;
+}
