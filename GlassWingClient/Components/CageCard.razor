@@ -53,7 +53,7 @@
                     <option value="">— choose a cage —</option>
                     @foreach (var type in AvailableReplacementTypes)
                     {
-                        <option value="@type.Id">@type.Brand @type.ModelName (@type.Price cr)</option>
+                        <option value="@type.Id">@type.Brand @type.ModelName (@type.InGamePrice cr)</option>
                     }
                 </select>
                 @if (replaceError is not null)
@@ -501,7 +501,7 @@
             return (Catalogue?.Cages ?? [])
                 .Where(t => t.Id != Cage.Type?.Id)
                 .Where(t => t.Tier is null || Array.IndexOf(TierOrder, t.Tier) <= maxRank)
-                .OrderBy(t => t.Price)
+                .OrderBy(t => t.InGamePrice)
                 .ToArray();
         }
     }

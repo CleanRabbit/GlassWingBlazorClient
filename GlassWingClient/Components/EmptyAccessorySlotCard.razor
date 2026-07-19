@@ -66,9 +66,9 @@
 
     int? SinglePrice => selectedKind switch
     {
-        "CarryCase"      => Catalogue?.CarryCases?.FirstOrDefault()?.Price,
-        "StorageDrawers" => Catalogue?.StorageDrawers?.FirstOrDefault()?.Price,
-        "FoodStorageBin" => Catalogue?.FoodStorageBins.FirstOrDefault()?.Price,
+        "CarryCase"      => Catalogue?.CarryCases?.FirstOrDefault()?.InGamePrice,
+        "StorageDrawers" => Catalogue?.StorageDrawers?.FirstOrDefault()?.InGamePrice,
+        "FoodStorageBin" => Catalogue?.FoodStorageBins.FirstOrDefault()?.InGamePrice,
         _                => null
     };
 
