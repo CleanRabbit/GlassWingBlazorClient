@@ -1,0 +1,13 @@
+@* Min/Max/Average card for a single numeric stat, used on the admin rats analytics dashboard. *@
+
+<div class="card h-100 border-0 shadow-sm">
+    <div class="card-body">
+        <h6 class="card-title text-muted">@Title</h6>
+        <div>Min @Stat.Min.ToString("N1") &middot; Max @Stat.Max.ToString("N1") &middot; Avg @Stat.Average.ToString("N1")</div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public StatSummaryDto Stat { get; set; } = new(0, 0, 0);
+}

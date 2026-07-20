@@ -1,0 +1,32 @@
+@* Ranked bar-list of counts by category, used on the admin rats analytics dashboard. *@
+
+<div class="card h-100 border-0 shadow-sm">
+    <div class="card-body">
+        <h6 class="card-title text-muted">@Title</h6>
+        @if (Values.Values.Sum() == 0)
+        {
+            <p class="text-muted small mb-0">No data.</p>
+        }
+        else
+        {
+            @foreach (var kv in Values.OrderByDescending(kv => kv.Value))
+            {
+                var pct = Max == 0 ? 0 : (int)Math.Round(100.0 * kv.Value / Max);
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>@kv.Key</span>
+                    <span class="text-muted">@kv.Value.ToString("N0")</span>
+                </div>
+                <div class="progress mb-2" style="height:6px">
+                    <div class="progress-bar" style="width:@(pct)%"></div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public Dictionary<string, int> Values { get; set; } = new();
+
+    int Max => Values.Values.DefaultIfEmpty(0).Max();
+}

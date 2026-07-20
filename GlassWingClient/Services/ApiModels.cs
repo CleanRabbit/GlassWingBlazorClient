@@ -655,3 +655,34 @@ public record AdminAuditLogEntryDto(
 // edit control per row.
 public record AdminGameSettingFieldDto(
     string Name, JsonElement DefaultValue, JsonElement CurrentValue, bool IsOverridden, bool IsAnchorField);
+
+// Task 41 — admin rats analytics dashboard. Dictionary keys are enum/int names serialized as
+// strings by the server (e.g. "Adult", "Female") — kept as Dictionary<string,int> here rather
+// than mirroring each server enum client-side, since these are display-only aggregate counts.
+public record StatSummaryDto(double Min, double Max, double Average);
+
+public record AdminRatAnalyticsResponse(
+    int TotalRats,
+    Dictionary<string, int> ByLifeStage,
+    Dictionary<string, int> BySex,
+    Dictionary<string, int> ByGeneration,
+    int RetiredCount,
+    int PregnantCount,
+    int NursingCount,
+    StatSummaryDto AgeDays,
+    StatSummaryDto SprintAbility,
+    StatSummaryDto AgilityAbility,
+    StatSummaryDto EnduranceAbility,
+    StatSummaryDto SprintPotential,
+    StatSummaryDto AgilityPotential,
+    StatSummaryDto EndurancePotential,
+    Dictionary<string, int> ByVitality,
+    int CriticalCount,
+    int ActiveIllnessCount,
+    Dictionary<string, int> IllnessFrequency,
+    Dictionary<string, int> StressorFrequency,
+    int HungryCount,
+    int ThirstyCount,
+    StatSummaryDto WeightGrams,
+    Dictionary<string, int> ByDietQuality,
+    Dictionary<string, int> TraitFrequency);

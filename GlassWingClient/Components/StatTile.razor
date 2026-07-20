@@ -1,0 +1,15 @@
+@* Small centered number-over-label card, used on dashboard-style admin pages. *@
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body text-center">
+            <div class="fs-3 fw-semibold">@Value</div>
+            <div class="text-muted small">@Label</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+}

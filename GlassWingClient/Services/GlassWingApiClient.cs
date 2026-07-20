@@ -930,6 +930,14 @@ public class GlassWingApiClient(HttpClient http)
             : null;
     }
 
+    public async Task<AdminRatAnalyticsResponse?> AdminGetRatAnalyticsAsync()
+    {
+        var resp = await http.GetAsync("/api/admin/rats/analytics");
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadFromJsonAsync<AdminRatAnalyticsResponse>(JsonOpts)
+            : null;
+    }
+
     public async Task<AdminAuditLogEntryDto[]?> AdminGetPlayerAuditLogAsync(string playerId, int limit = 20)
     {
         var resp = await http.GetAsync($"/api/admin/players/{playerId}/audit-log?limit={limit}");
